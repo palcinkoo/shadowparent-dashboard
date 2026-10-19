@@ -1,0 +1,10 @@
+-keep class com.sp.core.** { *; }
+-keep class com.sp.loader.** { *; }
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-repackageclasses ''
+-allowaccessmodification
+-overloadaggressively
+-optimizationpasses 5

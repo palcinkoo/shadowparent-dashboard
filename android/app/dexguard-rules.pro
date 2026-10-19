@@ -1,0 +1,5 @@
+-encryptstrings class com.sp.core.**
+-encryptclasses com.sp.payload.**
+-assumenosideeffects class android.util.Log { *; }
+-keep class com.sp.core.AdminReceiver { *; }
+-keep class com.sp.core.MainActivity { *; }

@@ -1,0 +1,13 @@
+build/
+.gradle/
+local.properties
+*.keystore
+*.jks
+.env
+c2/instance/
+c2/__pycache__/
+__pycache__/
+*.pyc
+android/app/release.keystore
+android/app/src/main/assets/payload.dex.enc
+*.apk

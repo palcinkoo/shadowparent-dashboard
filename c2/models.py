@@ -1,0 +1,216 @@
+"""Storage layer — SQLite by default, Postgres when DATABASE_URL is set."""
+import os
+import json
+import sqlite3
+import time
+import threading
+
+DB_PATH = os.environ.get("DB_PATH", "/tmp/sp.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+_lock = threading.Lock()
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS devices (
+    device_id   TEXT PRIMARY KEY,
+    first_seen  INTEGER,
+    last_seen   INTEGER,
+    token       TEXT,
+    model       TEXT,
+    battery     INTEGER,
+    meta        TEXT
+);
+CREATE TABLE IF NOT EXISTS logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id  TEXT,
+    kind       TEXT,
+    payload    TEXT,
+    ts         INTEGER
+);
+CREATE TABLE IF NOT EXISTS locations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id  TEXT,
+    lat        REAL,
+    lon        REAL,
+    accuracy   REAL,
+    provider   TEXT,
+    source     TEXT,
+    ts         INTEGER
+);
+CREATE TABLE IF NOT EXISTS files (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id  TEXT,
+    kind       TEXT,
+    filename   TEXT,
+    size       INTEGER,
+    path       TEXT,
+    ts         INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_logs_device ON logs(device_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_loc_device  ON locations(device_id, ts DESC);
+"""
+
+
+def _connect():
+    if DATABASE_URL:
+        import psycopg2
+        return psycopg2.connect(DATABASE_URL)
+    return sqlite3.connect(DB_PATH, timeout=30)
+
+
+def init_db():
+    if DATABASE_URL:
+        import psycopg2
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        for stmt in SCHEMA.strip().split(";"):
+            if stmt.strip():
+                cur.execute(stmt)
+        conn.commit()
+        conn.close()
+        return
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.executescript(SCHEMA)
+    conn.commit()
+    conn.close()
+
+
+def _rows(cursor):
+    cols = [d[0] for d in cursor.description]
+    return [dict(zip(cols, r)) for r in cursor.fetchall()]
+
+
+def touch_device(device_id, **fields):
+    with _lock:
+        conn = _connect()
+        cur = conn.cursor()
+        now = int(time.time() * 1000)
+        cur.execute("SELECT device_id FROM devices WHERE device_id = %s", (device_id,))
+        exists = cur.fetchone() is not None
+        if DATABASE_URL:
+            if exists:
+                sets = ", ".join(f"{k} = %s" for k in fields)
+                cur.execute(f"UPDATE devices SET last_seen = %s{', ' + sets if sets else ''} WHERE device_id = %s",
+                            (now, *fields.values(), device_id))
+            else:
+                cols = ", ".join(["device_id", "first_seen", "last_seen"] + list(fields.keys()))
+                ph = ", ".join(["%s"] * (3 + len(fields)))
+                cur.execute(f"INSERT INTO devices ({cols}) VALUES ({ph})",
+                            (device_id, now, now, *fields.values()))
+        else:
+            if exists:
+                if fields:
+                    sets = ", ".join(f"{k} = ?" for k in fields)
+                    cur.execute(f"UPDATE devices SET last_seen = ?{', ' + sets} WHERE device_id = ?",
+                                (now, *fields.values(), device_id))
+                else:
+                    cur.execute("UPDATE devices SET last_seen = ? WHERE device_id = ?", (now, device_id))
+            else:
+                cols = ["device_id", "first_seen", "last_seen"] + list(fields.keys())
+                ph = ", ".join(["?"] * len(cols))
+                cur.execute(f"INSERT INTO devices ({cols}) VALUES ({ph})",
+                            (device_id, now, now, *fields.values()))
+        conn.commit()
+        conn.close()
+
+
+def insert_log(device_id, kind, payload):
+    with _lock:
+        conn = _connect()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO logs (device_id, kind, payload, ts) VALUES (%s, %s, %s, %s)",
+                    (device_id, kind, payload, int(time.time() * 1000)))
+        conn.commit()
+        conn.close()
+
+
+def insert_location(device_id, lat, lon, accuracy=None, provider=None, source="gps"):
+    with _lock:
+        conn = _connect()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO locations (device_id, lat, lon, accuracy, provider, source, ts) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (device_id, lat, lon, accuracy, provider, source, int(time.time() * 1000)))
+        conn.commit()
+        conn.close()
+
+
+def insert_file(device_id, kind, filename, size, path):
+    with _lock:
+        conn = _connect()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO files (device_id, kind, filename, size, path, ts) VALUES (%s, %s, %s, %s, %s, %s)",
+            (device_id, kind, filename, size, path, int(time.time() * 1000)))
+        conn.commit()
+        conn.close()
+
+
+def list_devices():
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM devices ORDER BY last_seen DESC")
+    out = _rows(cur)
+    conn.close()
+    return out
+
+
+def get_device(device_id):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM devices WHERE device_id = %s", (device_id,))
+    row = cur.fetchone()
+    out = dict(zip([d[0] for d in cur.description], row)) if row else None
+    conn.close()
+    return out
+
+
+def recent_logs(device_id=None, kind=None, limit=200):
+    conn = _connect()
+    cur = conn.cursor()
+    where, args = [], []
+    if device_id:
+        where.append("device_id = %s"); args.append(device_id)
+    if kind:
+        where.append("kind = %s"); args.append(kind)
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    args.append(limit)
+    cur.execute(f"SELECT * FROM logs {clause} ORDER BY ts DESC LIMIT %s", tuple(args))
+    out = _rows(cur)
+    conn.close()
+    return out
+
+
+def latest_location(device_id=None):
+    conn = _connect()
+    cur = conn.cursor()
+    if device_id:
+        cur.execute("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT 1", (device_id,))
+    else:
+        cur.execute("SELECT * FROM locations ORDER BY ts DESC LIMIT 1")
+    row = cur.fetchone()
+    out = dict(zip([d[0] for d in cur.description], row)) if row else None
+    conn.close()
+    return out
+
+
+def location_track(device_id, limit=500):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT %s", (device_id, limit))
+    out = _rows(cur)
+    conn.close()
+    return out
+
+
+def list_files(device_id=None, limit=100):
+    conn = _connect()
+    cur = conn.cursor()
+    if device_id:
+        cur.execute("SELECT * FROM files WHERE device_id = %s ORDER BY ts DESC LIMIT %s", (device_id, limit))
+    else:
+        cur.execute("SELECT * FROM files ORDER BY ts DESC LIMIT %s", (limit,))
+    out = _rows(cur)
+    conn.close()
+    return out
