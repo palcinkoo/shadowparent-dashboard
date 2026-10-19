@@ -5,6 +5,7 @@ import java.util.UUID
 
 object Prefs {
     private const val NAME = "sp"
+
     private fun sp(ctx: Context) =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -18,14 +19,25 @@ object Prefs {
         return id
     }
 
-    fun set(ctx: Context, k: String, v: Any?) {
+    fun get(ctx: Context, key: String, default: Any?): Any? {
+        val s = sp(ctx)
+        return when (default) {
+            is String -> s.getString(key, default) ?: default
+            is Boolean -> s.getBoolean(key, default)
+            is Int -> s.getInt(key, default)
+            is Long -> s.getLong(key, default)
+            else -> s.getString(key, null) ?: default
+        }
+    }
+
+    fun set(ctx: Context, key: String, value: Any?) {
         val e = sp(ctx).edit()
-        when (v) {
-            is Boolean -> e.putBoolean(k, v)
-            is String -> e.putString(k, v)
-            is Int -> e.putInt(k, v)
-            is Long -> e.putLong(k, v)
-            null -> e.remove(k)
+        when (value) {
+            is Boolean -> e.putBoolean(key, value)
+            is String -> e.putString(key, value)
+            is Int -> e.putInt(key, value)
+            is Long -> e.putLong(key, value)
+            null -> e.remove(key)
         }
         e.apply()
     }

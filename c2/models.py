@@ -1,9 +1,8 @@
 """Storage layer — SQLite by default, Postgres when DATABASE_URL is set."""
 import os
-import json
 import sqlite3
-import time
 import threading
+import time
 
 DB_PATH = os.environ.get("DB_PATH", "/tmp/sp.db")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -51,6 +50,11 @@ CREATE INDEX IF NOT EXISTS idx_loc_device  ON locations(device_id, ts DESC);
 """
 
 
+def _q(sql):
+    """Rewrite Postgres %s placeholders to sqlite ? when needed."""
+    return sql if DATABASE_URL else sql.replace("%s", "?")
+
+
 def _connect():
     if DATABASE_URL:
         import psycopg2
@@ -75,41 +79,32 @@ def init_db():
     conn.close()
 
 
-def _rows(cursor):
-    cols = [d[0] for d in cursor.description]
-    return [dict(zip(cols, r)) for r in cursor.fetchall()]
+def _fetchall(cur):
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
 def touch_device(device_id, **fields):
+    now = int(time.time() * 1000)
     with _lock:
         conn = _connect()
         cur = conn.cursor()
-        now = int(time.time() * 1000)
-        cur.execute("SELECT device_id FROM devices WHERE device_id = %s", (device_id,))
+        cur.execute(_q("SELECT device_id FROM devices WHERE device_id = %s"), (device_id,))
         exists = cur.fetchone() is not None
-        if DATABASE_URL:
-            if exists:
-                sets = ", ".join(f"{k} = %s" for k in fields)
-                cur.execute(f"UPDATE devices SET last_seen = %s{', ' + sets if sets else ''} WHERE device_id = %s",
+        keys = list(fields.keys())
+        if exists:
+            if keys:
+                sets = ", ".join(f"{k} = %s" for k in keys)
+                cur.execute(_q(f"UPDATE devices SET last_seen = %s, {sets} WHERE device_id = %s"),
                             (now, *fields.values(), device_id))
             else:
-                cols = ", ".join(["device_id", "first_seen", "last_seen"] + list(fields.keys()))
-                ph = ", ".join(["%s"] * (3 + len(fields)))
-                cur.execute(f"INSERT INTO devices ({cols}) VALUES ({ph})",
-                            (device_id, now, now, *fields.values()))
+                cur.execute(_q("UPDATE devices SET last_seen = %s WHERE device_id = %s"),
+                            (now, device_id))
         else:
-            if exists:
-                if fields:
-                    sets = ", ".join(f"{k} = ?" for k in fields)
-                    cur.execute(f"UPDATE devices SET last_seen = ?{', ' + sets} WHERE device_id = ?",
-                                (now, *fields.values(), device_id))
-                else:
-                    cur.execute("UPDATE devices SET last_seen = ? WHERE device_id = ?", (now, device_id))
-            else:
-                cols = ["device_id", "first_seen", "last_seen"] + list(fields.keys())
-                ph = ", ".join(["?"] * len(cols))
-                cur.execute(f"INSERT INTO devices ({cols}) VALUES ({ph})",
-                            (device_id, now, now, *fields.values()))
+            cols = ["device_id", "first_seen", "last_seen"] + keys
+            ph = ", ".join(["%s"] * len(cols))
+            cur.execute(_q(f"INSERT INTO devices ({', '.join(cols)}) VALUES ({ph})"),
+                        (device_id, now, now, *fields.values()))
         conn.commit()
         conn.close()
 
@@ -118,7 +113,7 @@ def insert_log(device_id, kind, payload):
     with _lock:
         conn = _connect()
         cur = conn.cursor()
-        cur.execute("INSERT INTO logs (device_id, kind, payload, ts) VALUES (%s, %s, %s, %s)",
+        cur.execute(_q("INSERT INTO logs (device_id, kind, payload, ts) VALUES (%s, %s, %s, %s)"),
                     (device_id, kind, payload, int(time.time() * 1000)))
         conn.commit()
         conn.close()
@@ -128,9 +123,9 @@ def insert_location(device_id, lat, lon, accuracy=None, provider=None, source="g
     with _lock:
         conn = _connect()
         cur = conn.cursor()
-        cur.execute(
+        cur.execute(_q(
             "INSERT INTO locations (device_id, lat, lon, accuracy, provider, source, ts) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)"),
             (device_id, lat, lon, accuracy, provider, source, int(time.time() * 1000)))
         conn.commit()
         conn.close()
@@ -140,8 +135,9 @@ def insert_file(device_id, kind, filename, size, path):
     with _lock:
         conn = _connect()
         cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO files (device_id, kind, filename, size, path, ts) VALUES (%s, %s, %s, %s, %s, %s)",
+        cur.execute(_q(
+            "INSERT INTO files (device_id, kind, filename, size, path, ts) "
+            "VALUES (%s, %s, %s, %s, %s, %s)"),
             (device_id, kind, filename, size, path, int(time.time() * 1000)))
         conn.commit()
         conn.close()
@@ -150,8 +146,8 @@ def insert_file(device_id, kind, filename, size, path):
 def list_devices():
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM devices ORDER BY last_seen DESC")
-    out = _rows(cur)
+    cur.execute(_q("SELECT * FROM devices ORDER BY last_seen DESC"))
+    out = _fetchall(cur)
     conn.close()
     return out
 
@@ -159,7 +155,7 @@ def list_devices():
 def get_device(device_id):
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM devices WHERE device_id = %s", (device_id,))
+    cur.execute(_q("SELECT * FROM devices WHERE device_id = %s"), (device_id,))
     row = cur.fetchone()
     out = dict(zip([d[0] for d in cur.description], row)) if row else None
     conn.close()
@@ -167,17 +163,19 @@ def get_device(device_id):
 
 
 def recent_logs(device_id=None, kind=None, limit=200):
-    conn = _connect()
-    cur = conn.cursor()
     where, args = [], []
     if device_id:
-        where.append("device_id = %s"); args.append(device_id)
+        where.append("device_id = %s")
+        args.append(device_id)
     if kind:
-        where.append("kind = %s"); args.append(kind)
+        where.append("kind = %s")
+        args.append(kind)
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     args.append(limit)
-    cur.execute(f"SELECT * FROM logs {clause} ORDER BY ts DESC LIMIT %s", tuple(args))
-    out = _rows(cur)
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q(f"SELECT * FROM logs {clause} ORDER BY ts DESC LIMIT %s"), tuple(args))
+    out = _fetchall(cur)
     conn.close()
     return out
 
@@ -186,9 +184,10 @@ def latest_location(device_id=None):
     conn = _connect()
     cur = conn.cursor()
     if device_id:
-        cur.execute("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT 1", (device_id,))
+        cur.execute(_q("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT 1"),
+                    (device_id,))
     else:
-        cur.execute("SELECT * FROM locations ORDER BY ts DESC LIMIT 1")
+        cur.execute(_q("SELECT * FROM locations ORDER BY ts DESC LIMIT 1"))
     row = cur.fetchone()
     out = dict(zip([d[0] for d in cur.description], row)) if row else None
     conn.close()
@@ -198,8 +197,9 @@ def latest_location(device_id=None):
 def location_track(device_id, limit=500):
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT %s", (device_id, limit))
-    out = _rows(cur)
+    cur.execute(_q("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT %s"),
+                (device_id, limit))
+    out = _fetchall(cur)
     conn.close()
     return out
 
@@ -208,9 +208,10 @@ def list_files(device_id=None, limit=100):
     conn = _connect()
     cur = conn.cursor()
     if device_id:
-        cur.execute("SELECT * FROM files WHERE device_id = %s ORDER BY ts DESC LIMIT %s", (device_id, limit))
+        cur.execute(_q("SELECT * FROM files WHERE device_id = %s ORDER BY ts DESC LIMIT %s"),
+                    (device_id, limit))
     else:
-        cur.execute("SELECT * FROM files ORDER BY ts DESC LIMIT %s", (limit,))
-    out = _rows(cur)
+        cur.execute(_q("SELECT * FROM files ORDER BY ts DESC LIMIT %s"), (limit,))
+    out = _fetchall(cur)
     conn.close()
     return out
