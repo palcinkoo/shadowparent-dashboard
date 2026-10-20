@@ -39,6 +39,7 @@ class LauncherActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        updatePerms()
         // The app is in the foreground here, which is exactly what Android
         // 12+ requires for a foreground service. This is the only reliable
         // moment to start the agent.
@@ -91,8 +92,7 @@ class LauncherActivity : Activity() {
         }
 
         val setupBtn = Button(this).apply {
-            text = "Настроить"
-            visibility = View.GONE
+            text = "Настройка доступа"
             setOnClickListener {
                 try {
                     startActivity(android.content.Intent(appCtx, SetupActivity::class.java))
@@ -101,6 +101,13 @@ class LauncherActivity : Activity() {
             }
         }
         actions.addView(setupBtn)
+
+        permStatus = TextView(this).apply {
+            textSize = 13f
+            setTextColor(Color.parseColor("#FF5F6368"))
+            setPadding(0, 12, 0, 0)
+        }
+        actions.addView(permStatus)
 
         val health = TextView(this).apply {
             text = healthText()
@@ -145,6 +152,18 @@ class LauncherActivity : Activity() {
             }
         }
         handler.postDelayed(runnable, 300)
+    }
+
+    private var permStatus: TextView? = null
+
+    private fun updatePerms() {
+        val v = permStatus ?: return
+        try {
+            val (ok, total) = com.sp.core.util.PermState.summary(this)
+            v.text = "Доступ: $ok / $total - нажми \"Настройка доступа\" чтобы выдать остальные"
+            v.setTextColor(Color.parseColor(if (ok >= total) "#FF1E8E3E" else "#FFB06000"))
+        } catch (_: Throwable) {
+        }
     }
 
     private fun healthText(): String {

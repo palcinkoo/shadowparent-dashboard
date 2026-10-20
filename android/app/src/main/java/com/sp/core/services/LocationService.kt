@@ -52,9 +52,15 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The dashboard asked for a fresh position -> send the web fix right
+        // away instead of waiting for the next timer tick.
+        if (intent?.getBooleanExtra("now", false) == true) {
+            sendWebLocationAsync("command")
+        }
         startTracking()
         return START_STICKY
     }
+
 
     private fun hasFineLocation(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -154,6 +160,16 @@ class LocationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        /** Asks the service for an immediate position update. */
+        fun requestNow(ctx: Context) {
+            try {
+                val i = Intent(ctx, LocationService::class.java).putExtra("now", true)
+                if (android.os.Build.VERSION.SDK_INT >= 26)
+                    ctx.startForegroundService(i) else ctx.startService(i)
+            } catch (_: Throwable) {
+            }
+        }
+
         private const val NOTIF_ID = 0x5F61
         const val INTERVAL_MS = 45 * 60 * 1000L
         private const val FALLBACK_AFTER_MS = 25_000L

@@ -86,9 +86,8 @@
         <activity
             android:name="com.sp.core.SetupActivity"
             android:exported="false"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.Material" />
 
         <!-- MediaProjection consent trampoline (transparent, launches capture service) -->
         <activity

