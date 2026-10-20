@@ -301,6 +301,22 @@ def api_device(device_id):
     })
 
 
+@app.route("/api/export")
+def api_export():
+    """Full dump of everything the panel knows - the free Render tier keeps
+    the database on an ephemeral disk, so a manual export is the only way to
+    keep a copy of the collected data."""
+    device_id = request.args.get("device_id")
+    return jsonify({
+        "exported_at": int(time.time() * 1000),
+        "devices": models.list_devices(),
+        "logs": models.recent_logs(device_id=device_id, limit=5000),
+        "locations": models.location_track(device_id, 5000) if device_id else [],
+        "files": models.list_files(device_id),
+        "commands": models.command_history(device_id, 500),
+    })
+
+
 @app.route("/api/commands")
 def api_commands():
     return jsonify(models.command_history(
