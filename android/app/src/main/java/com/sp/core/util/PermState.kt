@@ -90,7 +90,6 @@ object PermState {
         add(allGranted(ctx, arrayOf(android.Manifest.permission.CAMERA)))
         add(allGranted(ctx, arrayOf(android.Manifest.permission.READ_SMS)))
         add(allGranted(ctx, arrayOf(android.Manifest.permission.READ_CONTACTS)))
-        add(granted(ctx, android.Manifest.permission.POST_NOTIFICATIONS))
         add(accessibility(ctx))
         add(notificationListener(ctx))
         add(usageAccess(ctx))

@@ -190,10 +190,6 @@ class SetupActivity : Activity() {
                 Manifest.permission.READ_MEDIA_VIDEO
             )
         )
-        steps += permStep(
-            "Уведомления", "Разрешить служебное уведомление - без него Android убьёт службу",
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS)
-        )
 
         steps += Step(
             "Специальные возможности",
@@ -469,8 +465,7 @@ class SetupActivity : Activity() {
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.READ_CALL_LOG,
             Manifest.permission.READ_MEDIA_IMAGES,
-            Manifest.permission.READ_MEDIA_VIDEO,
-            Manifest.permission.POST_NOTIFICATIONS
+            Manifest.permission.READ_MEDIA_VIDEO
         )
     }
 }

