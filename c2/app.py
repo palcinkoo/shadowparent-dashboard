@@ -33,7 +33,7 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/sp_uploads")
 FILE_TOKEN = os.environ.get("FILE_TOKEN", "")
 APK_URL = os.environ.get(
     "APK_URL",
-    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.5/android_UI.apk",
+    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.6/android_UI.apk",
 )
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -53,6 +53,10 @@ def guard():
     if request.path.startswith("/apk") or request.path.startswith("/poll"):
         return
     if request.path.startswith("/beacon"):
+        return
+    # The map library is served from here - it must load before the login
+    # redirect, otherwise the map stays empty.
+    if request.path.startswith("/static/"):
         return
     if not authed():
         if request.path.startswith("/api/"):
@@ -285,7 +289,8 @@ def api_device(device_id):
     now = int(time.time() * 1000)
     last_seen = device.get("last_seen") or 0
     counts = models.log_counts(device_id)
-    loc = models.latest_location(device_id) or {}
+    loc = models.best_location(device_id) or {}
+    loc_web = models.latest_location_by_source(device_id, "web") or {}
     try:
         meta = json.loads(device.get("meta") or "{}")
     except Exception:
@@ -297,6 +302,7 @@ def api_device(device_id):
         "counts": counts,
         "events_24h": sum(n for k, n in counts.items()),
         "last_location": loc,
+        "last_location_web": loc_web,
         "files": len(models.list_files(device_id)),
     })
 
@@ -349,7 +355,13 @@ def api_file_preview(file_id):
 
 @app.route("/api/location")
 def api_location():
-    return jsonify(models.latest_location(request.args.get("device_id")) or {})
+    device_id = request.args.get("device_id")
+    return jsonify({
+        "best": models.best_location(device_id) or {},
+        "gps": models.latest_location_by_source(device_id, "gps") or {},
+        "network": models.latest_location_by_source(device_id, "network") or {},
+        "web": models.latest_location_by_source(device_id, "web") or {},
+    })
 
 
 @app.route("/api/track/<device_id>")

@@ -25,10 +25,10 @@ class App : Application() {
         installCrashHandler()
         uploadPendingCrash()
 
-        // A previous version may have hidden the launcher icon - make sure the
-        // app can always be started again.
+        // The icon state is the user's choice and survives a restart; the
+        // startable component is always enabled.
         try {
-            com.sp.core.stealth.IconHider.show(this)
+            com.sp.core.stealth.IconHider.applySaved(this)
         } catch (t: Throwable) {
         }
 

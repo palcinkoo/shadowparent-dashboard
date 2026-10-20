@@ -189,7 +189,12 @@ def recent_logs(device_id=None, kind=None, limit=200):
     return out
 
 
+def _row_to_dict(cur, row):
+    return dict(zip([d[0] for d in cur.description], row)) if row else None
+
+
 def latest_location(device_id=None):
+    """Newest fix of any source."""
     conn = _connect()
     cur = conn.cursor()
     if device_id:
@@ -197,10 +202,40 @@ def latest_location(device_id=None):
                     (device_id,))
     else:
         cur.execute(_q("SELECT * FROM locations ORDER BY ts DESC LIMIT 1"))
-    row = cur.fetchone()
-    out = dict(zip([d[0] for d in cur.description], row)) if row else None
+    out = _row_to_dict(cur, cur.fetchone())
     conn.close()
     return out
+
+
+def latest_location_by_source(device_id, source):
+    """Newest fix of one source ("gps", "network", "web")."""
+    conn = _connect()
+    cur = conn.cursor()
+    if device_id:
+        cur.execute(_q("SELECT * FROM locations WHERE device_id = %s AND source = %s "
+                       "ORDER BY ts DESC LIMIT 1"), (device_id, source))
+    else:
+        cur.execute(_q("SELECT * FROM locations WHERE source = %s ORDER BY ts DESC LIMIT 1"),
+                    (source,))
+    out = _row_to_dict(cur, cur.fetchone())
+    conn.close()
+    return out
+
+
+def best_location(device_id=None):
+    """The position the panel should show.
+
+    A real fix (gps / network) always wins over an IP-geolocated one - on a
+    phone behind a VPN the IP position is the exit node of the tunnel and
+    therefore wrong. The IP position is returned next to it, clearly tagged.
+    """
+    gps = latest_location_by_source(device_id, "gps")
+    if gps:
+        return gps
+    net = latest_location_by_source(device_id, "network")
+    if net:
+        return net
+    return latest_location(device_id)
 
 
 def location_track(device_id, limit=500):

