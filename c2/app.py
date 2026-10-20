@@ -49,6 +49,8 @@ def guard():
         return
     if request.path.startswith("/ingest") or request.path.startswith("/upload"):
         return
+    if request.path.startswith("/apk"):
+        return
     if not authed():
         if request.path.startswith("/api/"):
             return jsonify({"error": "unauthorized"}), 401
