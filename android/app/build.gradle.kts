@@ -1,13 +1,17 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")
 }
+
+// Set -PspNoNative=true to skip the NDK/CMake step (useful on hosts without
+// the Android NDK, e.g. arm64 CI containers). The native library is required
+// at runtime, so release builds must keep it enabled.
+val spNoNative = (project.findProperty("spNoNative") as String?)?.toBoolean() ?: false
 
 android {
     namespace = "com.sp.core"
     compileSdk = 35
-    ndkVersion = "27.0.12077973"
+    if (!spNoNative) ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.sp.core"
@@ -15,25 +19,34 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-                arguments += "-DANDROID_STL=c++_shared"
+        if (!spNoNative) {
+            externalNativeBuild {
+                cmake {
+                    cppFlags += "-std=c++17"
+                    arguments += "-DANDROID_STL=c++_shared"
+                }
             }
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
-    externalNativeBuild {
-        cmake { path = file("src/main/cpp/CMakeLists.txt") }
+    if (!spNoNative) {
+        externalNativeBuild {
+            cmake { path = file("src/main/cpp/CMakeLists.txt") }
+        }
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.keystore")
-            storePassword = System.getenv("SP_STORE_PASS") ?: "change_me_store"
-            keyAlias = "sp"
-            keyPassword = System.getenv("SP_KEY_PASS") ?: "change_me_key"
+            // Only usable when the keystore is present; otherwise the release
+            // build falls back to the debug signature (see buildTypes below).
+            val ks = file("release.keystore")
+            if (ks.exists()) {
+                storeFile = ks
+                storePassword = System.getenv("SP_STORE_PASS") ?: "change_me_store"
+                keyAlias = "sp"
+                keyPassword = System.getenv("SP_KEY_PASS") ?: "change_me_key"
+            }
         }
     }
 
@@ -45,7 +58,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (file("release.keystore").exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
         }
     }
 
@@ -60,6 +76,13 @@ android {
     }
 
     buildFeatures { buildConfig = true }
+}
+
+// The Google Services plugin is only applied when a real google-services.json
+// is present. Without it the app still builds and the C2 works over HTTP;
+// FCM push commands need the Firebase project (see google-services.json.example).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 dependencies {

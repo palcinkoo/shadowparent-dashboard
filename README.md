@@ -67,7 +67,41 @@ make apk
 make zip
 ```
 
-`gradle wrapper` must be run once to produce `gradle/wrapper/gradle-wrapper.jar`.
+The Gradle wrapper lives in `android/` (`android/gradlew`, `android/gradle/wrapper/`).
+Requirements: JDK 17, Android SDK (platform 35, build-tools 35), NDK 27 for the
+native `spcore` library.
+
+Fast local check without the NDK (skips the C++ step):
+```bash
+cd android && ./gradlew -PspNoNative=true :app:assembleDebug
+```
+
+### GitHub Actions (recommended)
+`.github/workflows/android-build.yml` builds container + payload APK on every
+push to `main` and uploads them as the `shadowparent-apk` artifact
+(Download: repo → Actions → Build APK → Artifacts).
+
+## Modules
+| Module | What it does |
+|---|---|
+| `services/ScreenCapture.kt` | MediaProjection → VirtualDisplay → ImageReader → JPEG → C2 (one shot or interval) |
+| `services/ProjectionConsent.kt` | transparent trampoline for the MediaProjection consent dialog |
+| `services/CameraSnapService.kt` | Camera2 one-shot capture, no preview surface, frame straight to C2 |
+| `services/UsageStatsService.kt` | per-app foreground time, installed app inventory |
+| `util/WebGeo.kt` | IP-based geolocation (used when the GPS toggle is off) |
+| `util/DeadDrop.kt` | C2 endpoint recovery from HTTP sources + raw DNS TXT query |
+| `util/BatchExfil.kt` | SQLite buffer, one request per kind every 45 min |
+| `watchdog/HealthCheck.kt` | exponential back-off (1 min → 30 min) instead of a 60 s fixed tick |
+
+### Command set
+`loc`, `mic`, `media`, `ping`, `cfg`, `screen` (`shots`, `interval`),
+`cam` (`front`), `usage`, `apps`, `ddr`, `flush`.
+
+### Data cadence
+All telemetry is buffered in SQLite and shipped in batches every 45 minutes
+(`BatchExfil.FLUSH_INTERVAL_MS`, WorkManager periodic job, network-constrained).
+Location is pushed by GPS when available, otherwise through IP geolocation —
+without asking the target for anything.
 
 ## Zero-Touch provisioning
 ```bash

