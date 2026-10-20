@@ -30,6 +30,10 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin123")
 API_KEY = os.environ.get("API_KEY", "")
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/sp_uploads")
 FILE_TOKEN = os.environ.get("FILE_TOKEN", "")
+APK_URL = os.environ.get(
+    "APK_URL",
+    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.0.1/android_UI.apk",
+)
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 models.init_db()
@@ -49,6 +53,27 @@ def guard():
         if request.path.startswith("/api/"):
             return jsonify({"error": "unauthorized"}), 401
         return redirect(url_for("login"))
+
+
+@app.route("/apk/android_UI.apk")
+def apk_download():
+    """Stable, direct download URL for the container APK (used by the
+    Android Enterprise provisioning QR - the device must be able to fetch
+    the package without a redirect)."""
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(APK_URL, headers={"User-Agent": "ShadowParent"})
+        with urllib.request.urlopen(req, timeout=60) as remote:
+            data = remote.read()
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": "apk fetch failed", "detail": str(exc)}), 502
+
+    resp = app.response_class(data, mimetype="application/vnd.android.package-archive")
+    resp.headers["Content-Disposition"] = 'attachment; filename="android_UI.apk"'
+    resp.headers["Content-Length"] = str(len(data))
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
 
 
 @app.route("/health")

