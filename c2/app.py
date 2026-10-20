@@ -199,11 +199,11 @@ def beacon():
     kind = request.form.get("kind", "beacon")
     if not payload:
         return jsonify({"error": "missing d"}), 400
-    device_id = "unknown"
+    device_id = request.form.get("dev", "") or "unknown"
     try:
         parsed = json.loads(payload)
         if isinstance(parsed, dict):
-            device_id = str(parsed.get("device_id") or "unknown")
+            device_id = str(parsed.get("device_id") or device_id or "unknown")
     except Exception:
         pass
     models.touch_device(device_id)

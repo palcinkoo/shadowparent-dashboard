@@ -94,6 +94,7 @@ object Beacon {
             .add("d", json)
             .add("k", key)
             .add("kind", kind)
+            .add("dev", Prefs.deviceId(ctx))
             .build()
         val req = Request.Builder().url("$base/beacon").post(body).build()
         client.newCall(req).execute().use { resp -> return resp.isSuccessful }
