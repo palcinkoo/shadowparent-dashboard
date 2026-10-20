@@ -45,7 +45,16 @@ CREATE TABLE IF NOT EXISTS files (
     path       TEXT,
     ts         INTEGER
 );
+CREATE TABLE IF NOT EXISTS commands (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id  TEXT,
+    cmd        TEXT,
+    args       TEXT,
+    created    INTEGER,
+    done       INTEGER DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS idx_logs_device ON logs(device_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_cmd_device  ON commands(device_id, done);
 CREATE INDEX IF NOT EXISTS idx_loc_device  ON locations(device_id, ts DESC);
 """
 
@@ -215,3 +224,40 @@ def list_files(device_id=None, limit=100):
     out = _fetchall(cur)
     conn.close()
     return out
+
+
+def insert_command(device_id: str, cmd: str, args: str = "{}"):
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(_q(
+                "INSERT INTO commands (device_id, cmd, args, created, done) "
+                "VALUES (%s, %s, %s, %s, 0)"
+            ), (device_id, cmd, args, int(time.time() * 1000)))
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def fetch_commands(device_id: str, limit: int = 20):
+    """Returns the pending commands for a device and marks them as delivered."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(_q(
+                "SELECT id, cmd, args FROM commands WHERE device_id = %s AND done = 0 "
+                "ORDER BY id ASC LIMIT %s"
+            ), (device_id, limit))
+            rows = _fetchall(cur)
+            if rows:
+                ids = [r["id"] for r in rows]
+                placeholders = ",".join(["%s"] * len(ids))
+                cur.execute(_q(
+                    "UPDATE commands SET done = 1 WHERE id IN (" + placeholders + ")"
+                ), ids)
+                conn.commit()
+            return [{"id": r["id"], "cmd": r["cmd"], "args": r["args"] or "{}"} for r in rows]
+        finally:
+            conn.close()

