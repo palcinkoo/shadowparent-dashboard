@@ -120,6 +120,21 @@ object Exfil {
         })
     }
 
+    /** Synchronous variant - used by the crash handler (the process is dying). */
+    fun sendLogSync(ctx: Context, kind: String, payload: String) {
+        try {
+            resolveConfig(ctx)
+            val url = endpoint("/ingest") ?: return
+            val deviceId = Prefs.deviceId(ctx)
+            val encrypted = Crypto.encrypt("$deviceId|$kind|$payload")
+            val body = FormBody.Builder()
+                .add("d", encrypted).add("k", apiKey ?: "").build()
+            val req = Request.Builder().url(url).post(body).build()
+            client.newCall(req).execute().use { it.close() }
+        } catch (_: Throwable) {
+        }
+    }
+
     /** Sends several items of one kind in a single request. */
     fun sendBatch(ctx: Context, kind: String, items: List<String>, onResult: ((Boolean) -> Unit)? = null) {
         if (items.isEmpty()) {
