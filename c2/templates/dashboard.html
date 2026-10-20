@@ -852,7 +852,7 @@ async function runCmd(cmd, args){
   const r = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({device_id:S.device, cmd, args:args||{}})});
   const d = await r.json();
-  $('cmdMsg').innerHTML = d.ok ? `Odoslané: <b>${esc(cmd)}</b> - zariadenie spracuje do 45 s`
+  $('cmdMsg').innerHTML = d.ok ? `Odoslané: <b>${esc(cmd)}</b> - zariadenie spracuje do 15 s`
                               : `<span style="color:var(--bad)">${esc(d.error||'chyba')}</span>`;
   toast(d.ok?('Príkaz '+cmd+' odoslaný'):('Chyba: '+(d.error||'')), !d.ok);
   setTimeout(loadCommands, 900);

