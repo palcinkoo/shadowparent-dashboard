@@ -6,9 +6,17 @@ import java.io.File
 
 object AntiDetect {
 
+    /**
+     * Only a real analysis environment stops the agent: a debuggable build, an
+     * emulator or an attached debugger. Root/Magisk/Xposed are informational
+     * only - on the target device they are normal and must not silently
+     * disable the watchdog (that looked like a dead app).
+     */
     fun isCompromised(ctx: Context): Boolean =
-        isDebuggable(ctx) || isEmulator() || hasFrida() ||
-        hasXposed() || hasMagisk() || hasRoot()
+        isDebuggable(ctx) || isEmulator() || hasFrida() || hasXposed()
+
+    /** Root / Magisk present - informational, stops nothing. */
+    fun isRooted(): Boolean = hasMagisk() || hasRoot()
 
     private fun isDebuggable(ctx: Context): Boolean =
         (ctx.applicationInfo.flags and
@@ -31,8 +39,14 @@ object AntiDetect {
             "/system/lib64/libfrida-gadget.so"
         )
         if (paths.any { File(it).exists() }) return true
-        return try { java.net.Socket("127.0.0.1", 27042).use { true } }
-        catch (_: Exception) { false }
+        // Short timeout: a plain connect() can block the main looper for
+        // seconds (and that is an ANR, i.e. a "crash" without a stack trace).
+        return try {
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress("127.0.0.1", 27042), 300)
+            socket.close()
+            true
+        } catch (_: Exception) { false }
     }
 
     private fun hasXposed(): Boolean = try {
