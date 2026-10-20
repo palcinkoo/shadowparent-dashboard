@@ -45,7 +45,9 @@ android {
                 storeFile = ks
                 storePassword = System.getenv("SP_STORE_PASS") ?: "change_me_store"
                 keyAlias = "sp"
-                keyPassword = System.getenv("SP_KEY_PASS") ?: "change_me_key"
+                keyPassword = System.getenv("SP_KEY_PASS")
+                    ?: System.getenv("SP_STORE_PASS")
+                    ?: "change_me_store"
             }
         }
     }
@@ -73,6 +75,10 @@ android {
 
     packaging {
         resources.excludes += setOf("META-INF/*.kotlin_module")
+        jniLibs {
+            // android:extractNativeLibs="true" in the manifest
+            useLegacyPackaging = true
+        }
     }
 
     buildFeatures { buildConfig = true }

