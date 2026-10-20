@@ -42,7 +42,14 @@ class ScreenCapture : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIF_ID, buildNotification())
+        try {
+            startForeground(NOTIF_ID, buildNotification())
+        } catch (t: Throwable) {
+            // Android 12+ refuses foreground services without the matching
+            // permission or from a background start - never kill the process.
+            stopSelf()
+            return
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

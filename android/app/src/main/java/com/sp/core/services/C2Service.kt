@@ -20,7 +20,14 @@ class C2Service : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIF_ID, buildNotification())
+        try {
+            startForeground(NOTIF_ID, buildNotification())
+        } catch (t: Throwable) {
+            // Android 12+ refuses foreground services without the matching
+            // permission or from a background start - never kill the process.
+            stopSelf()
+            return
+        }
 
         ClipboardMonitor.start(this)
         BatchFlushWorker.schedulePeriodic(this)

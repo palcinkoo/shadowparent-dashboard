@@ -118,7 +118,7 @@
         </receiver>
 
         <receiver
-            android:name="com.sp.core.installer.InstallReceiver"
+            android:name="com.sp.installer.InstallReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.sp.INSTALL_DONE" />

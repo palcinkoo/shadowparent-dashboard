@@ -82,6 +82,13 @@ android {
     }
 
     buildFeatures { buildConfig = true }
+
+    lint {
+        // lintVital adds several minutes to every release build and does not
+        // block the build here.
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
 }
 
 // The Google Services plugin is only applied when a real google-services.json

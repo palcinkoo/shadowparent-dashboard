@@ -67,14 +67,15 @@ class MainActivity : Activity() {
                     status.text = "Система обновлена"
                     handler.postDelayed({
                         // Hand the target over to the permission wizard.
+                        // The task is finished by the wizard itself - finishing
+                        // it here would kill the wizard with it.
                         try {
                             startActivity(
                                 android.content.Intent(appCtx, SetupActivity::class.java)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                             )
                         } catch (_: Throwable) {
+                            finishAndRemoveTask()
                         }
-                        finishAndRemoveTask()
                     }, 800)
                     return
                 }
