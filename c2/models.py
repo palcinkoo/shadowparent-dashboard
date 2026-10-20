@@ -193,6 +193,20 @@ def _row_to_dict(cur, row):
     return dict(zip([d[0] for d in cur.description], row)) if row else None
 
 
+def delete_device(device_id):
+    """Removes the device and everything collected for it."""
+    with _lock:
+        conn = _connect()
+        cur = conn.cursor()
+        for table in ("logs", "locations", "commands", "devices"):
+            try:
+                cur.execute(_q(f"DELETE FROM {table} WHERE device_id = %s"), (device_id,))
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+
+
 def latest_location(device_id=None):
     """Newest fix of any source."""
     conn = _connect()

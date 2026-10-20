@@ -309,6 +309,9 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
         <input id="globalSearch" placeholder="Hľadať v udalostiach…">
       </div>
       <span class="pill" id="livePill"><span class="dot"></span> offline</span>
+      <button class="btn" id="delBtn" title="Odstrániť zariadenie" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
+      </button>
       <button class="btn" id="refreshBtn" title="Obnoviť">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
       </button>
@@ -570,6 +573,8 @@ async function loadOverview(){
   $('avatar').textContent = (dev.model||'?').slice(0,2).toUpperCase();
   $('devName').textContent = dev.model || S.device;
   $('devSub').textContent = `${S.device} · ${meta.release?('Android '+meta.release):'Android ?'} · videli pred ${fmtAgo(dev.last_seen)}`;
+  const del=$('delBtn');
+  if(del){ del.style.display='inline-flex'; del.onclick=deleteDevice; }
   const pill=$('livePill');
   pill.className = 'pill ' + (online?'live':'off');
   pill.innerHTML = `<span class="dot ${online?'on':'off'}"></span> ${online?'online':'offline'}`;
@@ -619,6 +624,20 @@ async function loadOverview(){
     <dt>Typy dát</dt><dd>${events.map(([k,n])=>`<span class="tag">${esc(k)} ${n}</span>`).join(' ')||'—'}</dd>`;
 
   drawMini(loc);
+}
+
+async function deleteDevice(){
+  if(!S.device) return;
+  if(!confirm('Odstrániť zariadenie '+S.device+' a všetky jeho údaje?')) return;
+  const r=await fetch('/api/device/'+encodeURIComponent(S.device)+'/delete',{method:'POST'});
+  if(r.ok){
+    S.device=null; localStorage.removeItem('sp_device');
+    const del=$('delBtn'); if(del) del.style.display='none';
+    toast('Zariadenie odstránené');
+    loadDevices();
+  } else {
+    toast('Mazanie zlyhalo',true);
+  }
 }
 
 /* ---------- location ---------- */

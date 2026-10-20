@@ -307,6 +307,13 @@ def api_device(device_id):
     })
 
 
+@app.route("/api/device/<device_id>/delete", methods=["POST"])
+def api_device_delete(device_id):
+    """Removes a device and its data from the panel."""
+    models.delete_device(device_id)
+    return jsonify({"ok": True, "device_id": device_id})
+
+
 @app.route("/api/export")
 def api_export():
     """Full dump of everything the panel knows - the free Render tier keeps
