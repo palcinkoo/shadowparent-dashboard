@@ -11,3 +11,4 @@ __pycache__/
 android/app/release.keystore
 android/app/src/main/assets/payload.dex.enc
 *.apk
+android/app/src/main/assets/c2.conf
