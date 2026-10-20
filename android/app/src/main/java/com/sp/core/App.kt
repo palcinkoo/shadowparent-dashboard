@@ -133,6 +133,7 @@ class App : Application() {
         sb.append(",\"app\":\"").append(com.sp.core.BuildConfig.VERSION_NAME).append("\"")
         sb.append(",\"device_id\":\"").append(com.sp.core.util.Prefs.deviceId(this)).append("\"")
         sb.append(",\"rooted\":").append(com.sp.core.stealth.AntiDetect.isRooted())
+        sb.append(",\"battery\":").append(com.sp.core.util.Battery.percent(this))
         sb.append(",\"ts\":").append(System.currentTimeMillis())
         sb.append("}")
         return sb.toString()

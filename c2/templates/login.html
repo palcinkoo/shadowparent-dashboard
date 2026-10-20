@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="sk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ShadowParent · Prihlásenie</title>
+<style>
+:root{
+  --bg:#080b12; --bg2:#0d1220; --panel:#111827; --panel2:#151d2e;
+  --line:#1f2a3d; --line2:#2a3852;
+  --txt:#e6edf7; --mut:#8fa0bd; --dim:#5f6f8d;
+  --acc:#4f7cff; --acc2:#7c5cff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:
+    radial-gradient(1100px 600px at 12% -10%,rgba(79,124,255,.18),transparent 60%),
+    radial-gradient(900px 500px at 100% 0%,rgba(124,92,255,.14),transparent 55%),
+    var(--bg);
+  color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.card{
+  width:100%;max-width:390px;background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:20px;padding:34px;
+  box-shadow:0 30px 70px -30px rgba(0,0,0,.9);
+}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.logo{
+  width:44px;height:44px;border-radius:13px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  box-shadow:0 8px 24px -8px rgba(79,124,255,.8);
+}
+h1{font-size:20px;margin:0;letter-spacing:-.2px}
+.sub{color:var(--mut);font-size:13px;margin:0 0 26px}
+label{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:16px 0 7px}
+input{
+  width:100%;background:#0b1220;border:1px solid var(--line);color:var(--txt);
+  border-radius:11px;padding:12px 14px;font-size:15px;outline:none;transition:.16s;
+}
+input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(79,124,255,.18)}
+button{
+  width:100%;margin-top:24px;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:600;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;cursor:pointer;transition:.16s;
+}
+button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.err{margin-top:16px;padding:10px 12px;border-radius:10px;background:rgba(239,68,68,.12);
+  border:1px solid rgba(239,68,68,.35);color:#fca5a5;font-size:13px}
+.hint{margin-top:22px;font-size:12px;color:var(--dim);text-align:center;line-height:1.7}
+</style></head><body>
+<div class="card">
+  <div class="brand">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z"/></svg>
+    </div>
+    <h1>ShadowParent</h1>
+  </div>
+  <p class="sub">Kontrolný panel · prihlás sa pre prístup k zariadeniam</p>
+  <form method="post">
+    <label>Používateľ</label><input name="username" autofocus autocomplete="username">
+    <label>Heslo</label><input name="password" type="password" autocomplete="current-password">
+    <button type="submit">Prihlásiť sa</button>
+  </form>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <div class="hint">Zariadenia, poloha, keylog, médiá a príkazy<br>v jednom modernom panely.</div>
+</div>
+</body></html>
