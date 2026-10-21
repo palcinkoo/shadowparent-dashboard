@@ -138,7 +138,7 @@ def push_db(db_path):
     """Mirrors the SQLite file into the repository."""
     if not enabled():
         return False
-    global _last_push, _last_error
+    global _last_push, _last_error, _last_push_size
     with _lock:
         if time.time() - _last_push < 20:
             return False
@@ -233,6 +233,8 @@ def status(db_path):
     except OSError:
         size = 0
     return {
+        "pid": os.getpid(),
+        "threads": [t.name for t in threading.enumerate()],
         "enabled": enabled(),
         "repo": REPO,
         "branch": BRANCH,
