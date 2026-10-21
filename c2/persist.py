@@ -156,8 +156,27 @@ def push_db(db_path):
             return False
 
 
+def _fingerprint(db_path):
+    """max(timestamp) of the database - the newer copy wins."""
+    try:
+        import sqlite3
+        conn = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True, timeout=5)
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(ts), 0) FROM logs")
+        max_ts = int((cur.fetchone() or (0,))[0] or 0)
+        cur.execute("SELECT COALESCE(MAX(last_seen), 0) FROM devices")
+        max_seen = int((cur.fetchone() or (0,))[0] or 0)
+        conn.close()
+        return max(max_ts, max_seen)
+    except Exception:
+        return 0
+
+
 def restore_db(db_path):
-    """Puts the mirrored database back when the container starts empty."""
+    """Puts the mirrored database back when the container starts empty.
+
+    The mirrored copy is only used when it is newer than the local one - a
+    restart in the middle of a write must not lose the freshest rows."""
     if not enabled():
         return False
     try:
@@ -165,15 +184,14 @@ def restore_db(db_path):
         if not blob:
             return False
         with _lock:
-            current = b""
-            if os.path.exists(db_path):
-                with open(db_path, "rb") as handle:
-                    current = handle.read()
-            if len(current) >= len(blob):
-                return False
             tmp = db_path + ".restore"
             with open(tmp, "wb") as handle:
                 handle.write(blob)
+            remote = _fingerprint(tmp)
+            local = _fingerprint(db_path) if os.path.exists(db_path) else 0
+            if local >= remote and local > 0:
+                os.remove(tmp)
+                return False
             os.replace(tmp, db_path)
         print("[persist] database restored from the mirror (%d bytes)" % len(blob), flush=True)
         return True
@@ -213,11 +231,15 @@ def start_sync_loop(db_path, dirty_flag, interval=45):
         return None
 
     def loop():
+        last_size = -1
         while True:
             time.sleep(interval)
             try:
-                push_db(db_path)
-                dirty_flag()
+                size = os.path.getsize(db_path)
+                if size == last_size:
+                    continue
+                if push_db(db_path):
+                    last_size = size
             except Exception as exc:
                 print("[persist] sync loop: %s" % exc, flush=True)
 

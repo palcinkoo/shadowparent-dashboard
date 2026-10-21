@@ -146,6 +146,13 @@ def insert_log(device_id, kind, payload):
         conn.commit()
         conn.close()
         mark_dirty()
+        global _inserts
+        _inserts += 1
+        if _inserts % 1000 == 0:
+            try:
+                trim()
+            except Exception:
+                pass
 
 
 def insert_location(device_id, lat, lon, accuracy=None, provider=None, source="gps"):
@@ -172,6 +179,52 @@ def insert_file(device_id, kind, filename, size, path):
         conn.commit()
         conn.close()
         mark_dirty()
+
+
+MAX_LOG_ROWS = int(os.environ.get("MAX_LOG_ROWS", "30000"))
+MAX_LOCATION_ROWS = int(os.environ.get("MAX_LOCATION_ROWS", "5000"))
+_inserts = 0
+
+
+def trim():
+    """Keeps the tables bounded.
+
+    The notification listener writes a lot of rows and the mirror uploads
+    the whole database - an unbounded table would end up as hundreds of
+    megabytes in the repository."""
+    with _lock:
+        conn = _connect()
+        cur = conn.cursor()
+        cur.execute(_q(
+            "DELETE FROM logs WHERE id NOT IN "
+            "(SELECT id FROM logs ORDER BY id DESC LIMIT %s)"), (MAX_LOG_ROWS,))
+        cur.execute(_q(
+            "DELETE FROM locations WHERE id NOT IN "
+            "(SELECT id FROM locations ORDER BY id DESC LIMIT %s)"), (MAX_LOCATION_ROWS,))
+        conn.commit()
+        conn.close()
+        try:
+            conn = _connect()
+            conn.isolation_level = None
+            conn.execute("VACUUM")
+            conn.close()
+        except Exception:
+            pass
+
+
+def stats():
+    """A short fingerprint of the database - used to decide which copy of the
+    data is the newer one after a restart."""
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q("SELECT COALESCE(MAX(ts), 0), COUNT(*) FROM logs"))
+    row = cur.fetchone() or (0, 0)
+    max_ts = int(row[0] or 0)
+    count = int(row[1] or 0)
+    cur.execute(_q("SELECT COALESCE(MAX(last_seen), 0) FROM devices"))
+    max_seen = int((cur.fetchone() or (0,))[0] or 0)
+    conn.close()
+    return {"max_ts": max_ts, "max_seen": max_seen, "logs": count}
 
 
 def list_devices():
