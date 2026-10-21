@@ -73,6 +73,8 @@ class LauncherActivity : Activity() {
     private var autoActive = false
     private var autoSpecialIdx = 0
     private var lastSpecial: Step? = null
+    private var runtimeDone = false
+    private var bgAsked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +106,10 @@ class LauncherActivity : Activity() {
         if (autoActive && done != null) {
             lastSpecial = null
             handler.postDelayed({ openSpecialStep(autoSpecialIdx + 1) }, 700)
+        } else if (autoActive && runtimeDone) {
+            // The user came back from the app details screen (background
+            // location) - the flow continues with the settings screens.
+            handler.postDelayed({ openSpecialStep(autoSpecialIdx) }, 500)
         }
 
         // First start after the installation / update: run everything without
@@ -498,6 +504,8 @@ class LauncherActivity : Activity() {
     private fun startAutoFlow(force: Boolean = false) {
         if (autoActive) return
         autoActive = true
+        runtimeDone = false
+        bgAsked = false
         autoSpecialIdx = if (force) 0 else (Prefs.get(this, KEY_AUTO_IDX, 0) as Int)
         Prefs.set(this, KEY_AUTO_IDX, autoSpecialIdx)
         if (::skipBtn.isInitialized) skipBtn.visibility = View.VISIBLE
@@ -508,10 +516,13 @@ class LauncherActivity : Activity() {
     private fun afterRuntime() {
         refresh()
         if (!autoActive) return
+        runtimeDone = true
         // Background location is the only runtime permission that has to be
-        // granted in the settings - it opens the app details screen.
+        // granted in the settings - it opens the app details screen. The
+        // flow continues in onResume when the user comes back.
         val bg = Manifest.permission.ACCESS_BACKGROUND_LOCATION
-        if (Build.VERSION.SDK_INT >= 29 && !PermState.granted(this, bg)) {
+        if (Build.VERSION.SDK_INT >= 29 && !PermState.granted(this, bg) && !bgAsked) {
+            bgAsked = true
             openSettings(
                 Intent(
                     Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
