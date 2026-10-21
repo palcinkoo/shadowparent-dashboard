@@ -55,17 +55,37 @@ def _head():
         ref = _request("GET", "/repos/%s/git/ref/heads/%s" % (REPO, BRANCH))
         return ref["object"]["sha"], ref["object"]["type"]
     except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+        # 404: the branch does not exist. 409: the repository is still empty.
+        if exc.code in (404, 409):
             return None, None
         raise
 
 
+def _bootstrap():
+    """The git data API refuses to work on an empty repository - the first
+    commit is created through the contents API, the rest is git data."""
+    _request("PUT", "/repos/%s/contents/.mirror-init" % REPO, {
+        "message": "c2 mirror",
+        "content": base64.b64encode(b"shadowparent c2 mirror").decode(),
+        "branch": BRANCH,
+    })
+
+
 def _put_blob(path, content):
     """Writes one file into the mirror branch and returns its blob sha."""
-    blob = _request("POST", "/repos/%s/git/blobs" % REPO, {
-        "content": base64.b64encode(content).decode(),
-        "encoding": "base64",
-    })["sha"]
+    try:
+        blob = _request("POST", "/repos/%s/git/blobs" % REPO, {
+            "content": base64.b64encode(content).decode(),
+            "encoding": "base64",
+        })["sha"]
+    except urllib.error.HTTPError as exc:
+        if exc.code != 409:
+            raise
+        _bootstrap()
+        blob = _request("POST", "/repos/%s/git/blobs" % REPO, {
+            "content": base64.b64encode(content).decode(),
+            "encoding": "base64",
+        })["sha"]
 
     head, head_type = _head()
     base_tree = None
