@@ -12,6 +12,7 @@ blob, the recordings are one blob each.  Both are restored on startup, so a
 redeploy, a crash or a spin-down no longer costs any data.
 """
 import base64
+import gzip
 import json
 import os
 import threading
@@ -23,7 +24,7 @@ API = "https://api.github.com"
 REPO = os.environ.get("GH_REPO", "")        # owner/name
 BRANCH = os.environ.get("GH_BRANCH", "c2data")
 TOKEN = os.environ.get("GH_TOKEN", "")
-DB_BLOB = "sp.db"
+DB_BLOB = "sp.db.gz"
 
 # The database is a few megabytes - pushing it every few minutes is enough.
 MIN_PUSH_INTERVAL = int(os.environ.get("MIRROR_PUSH_INTERVAL", "180"))
@@ -146,7 +147,10 @@ def push_db(db_path):
             return False
         try:
             with open(db_path, "rb") as handle:
-                blob = handle.read()
+                raw = handle.read()
+            # The database is compressed - the git API refuses the bodies
+            # that are too large and the push has to stay fast.
+            blob = gzip.compress(raw, 6)
             _put_blob(DB_BLOB, blob)
             _last_push = time.time()
             _last_push_size = len(blob)
@@ -185,17 +189,21 @@ def restore_db(db_path):
         blob = _get_blob(DB_BLOB)
         if not blob:
             return False
+        try:
+            raw = gzip.decompress(blob)
+        except Exception:
+            return False
         with _lock:
             tmp = db_path + ".restore"
             with open(tmp, "wb") as handle:
-                handle.write(blob)
+                handle.write(raw)
             remote = _fingerprint(tmp)
             local = _fingerprint(db_path) if os.path.exists(db_path) else 0
             if local >= remote and local > 0:
                 os.remove(tmp)
                 return False
             os.replace(tmp, db_path)
-        print("[persist] database restored from the mirror (%d bytes)" % len(blob), flush=True)
+        print("[persist] database restored from the mirror (%d bytes)" % len(raw), flush=True)
         return True
     except Exception as exc:
         print("[persist] db restore failed: %s" % exc, flush=True)
@@ -234,9 +242,18 @@ def start_sync_loop(db_path, dirty_flag, interval=45):
 
     def loop():
         last_size = -1
+        first = True
         while True:
             time.sleep(interval)
             try:
+                if first:
+                    # The restore is done here, not while the application
+                    # starts - a cold start must answer the health check.
+                    try:
+                        restore_db(db_path)
+                    except Exception as exc:
+                        print("[persist] restore failed: %s" % exc, flush=True)
+                    first = False
                 size = os.path.getsize(db_path)
                 if size == last_size:
                     continue

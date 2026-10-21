@@ -60,10 +60,6 @@ def ensure_mirror():
     with _mirror_lock:
         if _mirror_started:
             return
-        try:
-            persist.restore_db(models.DB_PATH)
-        except Exception as exc:
-            print("[persist] restore skipped: %s" % exc, flush=True)
         persist.start_sync_loop(models.DB_PATH, models.is_dirty, interval=30)
         _mirror_started = True
         print("[persist] mirror enabled for %s@%s" % (persist.REPO, persist.BRANCH), flush=True)
