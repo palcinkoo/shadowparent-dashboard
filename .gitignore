@@ -17,3 +17,6 @@ android/app/src/main/assets/c2.conf
 android/app/src/main/jniLibs/
 
 .kotlin/
+
+# QA harness output (screenshots + report)
+c2/qa/out/

