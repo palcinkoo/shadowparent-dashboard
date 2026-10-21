@@ -75,6 +75,7 @@ class LauncherActivity : Activity() {
     private var lastSpecial: Step? = null
     private var runtimeDone = false
     private var bgAsked = false
+    private var retryDone = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -506,6 +507,7 @@ class LauncherActivity : Activity() {
         autoActive = true
         runtimeDone = false
         bgAsked = false
+        retryDone = false
         autoSpecialIdx = if (force) 0 else (Prefs.get(this, KEY_AUTO_IDX, 0) as Int)
         Prefs.set(this, KEY_AUTO_IDX, autoSpecialIdx)
         if (::skipBtn.isInitialized) skipBtn.visibility = View.VISIBLE
@@ -517,6 +519,19 @@ class LauncherActivity : Activity() {
         refresh()
         if (!autoActive) return
         runtimeDone = true
+
+        // One more pass for the permissions that are still missing - a
+        // denied or skipped dialog must not stay denied for good.
+        if (!retryDone) {
+            val group = PERM_GROUPS.firstOrNull { g ->
+                g.any { !PermState.granted(this, it) }
+            }
+            if (group != null) {
+                retryDone = true
+                requestPerms(group)
+                return
+            }
+        }
         // Background location is the only runtime permission that has to be
         // granted in the settings - it opens the app details screen. The
         // flow continues in onResume when the user comes back.
@@ -667,9 +682,9 @@ class LauncherActivity : Activity() {
             ),
             arrayOf(Manifest.permission.RECORD_AUDIO),
             arrayOf(Manifest.permission.CAMERA),
-            arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS),
             arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_CALL_LOG),
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO),
+            arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
         )
     }
 }

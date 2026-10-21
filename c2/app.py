@@ -33,7 +33,7 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/sp_uploads")
 FILE_TOKEN = os.environ.get("FILE_TOKEN", "")
 APK_URL = os.environ.get(
     "APK_URL",
-    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.7/android_UI.apk",
+    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.8/android_UI.apk",
 )
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
