@@ -16,6 +16,7 @@ import json
 import time
 import uuid
 import hmac
+import threading
 
 from flask import (Flask, request, jsonify, render_template, render_template_string,
                    session, redirect, url_for, abort, send_file)
@@ -44,14 +45,40 @@ models.init_db()
 # The free Render filesystem is wiped on every restart of the container, so
 # the database and the uploaded recordings are mirrored into a GitHub
 # repository and restored here when the container comes back empty.
-if persist.enabled():
-    persist.restore_db(models.DB_PATH)
-    persist.start_sync_loop(models.DB_PATH, models.is_dirty)
-    print("[persist] mirror enabled for %s@%s" % (persist.REPO, persist.BRANCH), flush=True)
+#
+# The worker is started lazily: gunicorn may load the application before it
+# forks, and a thread created at import time would be lost with the fork.
+_mirror_started = False
+_mirror_lock = threading.Lock()
+
+
+def ensure_mirror():
+    """Starts the mirror thread inside the worker process."""
+    global _mirror_started
+    if _mirror_started or not persist.enabled():
+        return
+    with _mirror_lock:
+        if _mirror_started:
+            return
+        try:
+            persist.restore_db(models.DB_PATH)
+        except Exception as exc:
+            print("[persist] restore skipped: %s" % exc, flush=True)
+        persist.start_sync_loop(models.DB_PATH, models.is_dirty, interval=30)
+        _mirror_started = True
+        print("[persist] mirror enabled for %s@%s" % (persist.REPO, persist.BRANCH), flush=True)
 
 
 def authed():
     return session.get("logged_in", False)
+
+
+@app.before_request
+def start_mirror():
+    try:
+        ensure_mirror()
+    except Exception:
+        pass
 
 
 @app.before_request
@@ -138,6 +165,10 @@ def ingest():
         return jsonify({"error": "decrypt failed", "detail": str(exc)}), 400
 
     models.touch_device(device_id)
+    try:
+        persist.push_db(models.DB_PATH)
+    except Exception:
+        pass
 
     # Batched payloads look like {"items": [...]} - every item is stored on its
     # own row so the dashboard stays readable.
@@ -208,6 +239,10 @@ def upload():
 
     models.touch_device(device_id)
     models.insert_file(device_id, kind, safe, os.path.getsize(dest), stored)
+    try:
+        persist.push_db(models.DB_PATH)
+    except Exception:
+        pass
     return jsonify({"ok": True, "path": dest}), 200
 
 
@@ -252,6 +287,10 @@ def beacon():
         pass
     models.touch_device(device_id, **fields)
     models.insert_log(device_id, f"beacon:{kind}", payload[:4000])
+    try:
+        persist.push_db(models.DB_PATH)
+    except Exception:
+        pass
     return jsonify({"ok": True}), 200
 
 
