@@ -137,13 +137,13 @@ def _get_blob(path):
 
 # -------------------------------------------------------------------- public
 
-def push_db(db_path):
+def push_db(db_path, force=False):
     """Mirrors the SQLite file into the repository."""
     if not enabled():
         return False
     global _last_push, _last_error, _last_push_size
     with _lock:
-        if time.time() - _last_push < MIN_PUSH_INTERVAL:
+        if not force and time.time() - _last_push < MIN_PUSH_INTERVAL:
             return False
         try:
             with open(db_path, "rb") as handle:
@@ -242,18 +242,15 @@ def start_sync_loop(db_path, dirty_flag, interval=45):
 
     def loop():
         last_size = -1
-        first = True
         while True:
-            time.sleep(interval)
             try:
-                if first:
-                    # The restore is done here, not while the application
-                    # starts - a cold start must answer the health check.
-                    try:
-                        restore_db(db_path)
-                    except Exception as exc:
-                        print("[persist] restore failed: %s" % exc, flush=True)
-                    first = False
+                # The restore is done here, not while the application starts -
+                # a cold start must answer the health check immediately.
+                try:
+                    restore_db(db_path)
+                except Exception as exc:
+                    print("[persist] restore failed: %s" % exc, flush=True)
+                time.sleep(interval)
                 size = os.path.getsize(db_path)
                 if size == last_size:
                     continue

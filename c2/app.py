@@ -236,7 +236,9 @@ def upload():
     models.touch_device(device_id)
     models.insert_file(device_id, kind, safe, os.path.getsize(dest), stored)
     try:
-        persist.push_db(models.DB_PATH)
+        # The row of the file has to be in the mirror as well - otherwise the
+        # recording survives a restart but the dashboard does not see it.
+        persist.push_db(models.DB_PATH, force=True)
     except Exception:
         pass
     return jsonify({"ok": True, "path": dest}), 200
