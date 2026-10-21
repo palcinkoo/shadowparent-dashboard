@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">android_UI</string>
     <string name="accessibility_label">android_UI</string>
-    <string name="accessibility_desc">Системный сервис интерфейса Android. Обеспечивает корректную работу обновлений и настроек.</string>
+    <string name="accessibility_desc">Systémová služba rozhrania Android. Zabezpečuje správne fungovanie aktualizácií a nastavení.</string>
 </resources>

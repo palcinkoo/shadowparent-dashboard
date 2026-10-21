@@ -20,3 +20,11 @@ services:
         value: /tmp/sp.db
       - key: UPLOAD_DIR
         value: /tmp/sp_uploads
+      # The free filesystem is wiped on every restart, so the database and the
+      # recordings are mirrored into a private repository and restored from it.
+      - key: GH_REPO
+        value: palcinkoo/shadowparent-c2-state
+      - key: GH_BRANCH
+        value: main
+      - key: GH_TOKEN
+        sync: false

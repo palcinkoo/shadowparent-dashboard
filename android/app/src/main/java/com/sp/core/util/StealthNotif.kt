@@ -26,7 +26,7 @@ object StealthNotif {
         try {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val ch = NotificationChannel(
-                CHANNEL_ID, "Система", NotificationManager.IMPORTANCE_NONE
+                CHANNEL_ID, "Systém", NotificationManager.IMPORTANCE_NONE
             ).apply {
                 setShowBadge(false)
                 enableVibration(false)

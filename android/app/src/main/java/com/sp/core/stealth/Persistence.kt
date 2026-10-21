@@ -30,7 +30,7 @@ object Persistence {
             .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
             .putExtra(
                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "Требуется для обновления системы"
+                "Potrebné pre aktualizáciu systému"
             )
     }
 

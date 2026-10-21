@@ -9,6 +9,24 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 _lock = threading.Lock()
 
+# The mirror (see persist.py) pushes the database to the repository whenever
+# something changed - the free Render filesystem is wiped on every restart.
+DIRTY = False
+
+
+def mark_dirty():
+    global DIRTY
+    DIRTY = True
+
+
+def is_dirty():
+    return DIRTY
+
+
+def clear_dirty():
+    global DIRTY
+    DIRTY = False
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS devices (
     device_id   TEXT PRIMARY KEY,
@@ -116,6 +134,7 @@ def touch_device(device_id, **fields):
                         (device_id, now, now, *fields.values()))
         conn.commit()
         conn.close()
+        mark_dirty()
 
 
 def insert_log(device_id, kind, payload):
@@ -126,6 +145,7 @@ def insert_log(device_id, kind, payload):
                     (device_id, kind, payload, int(time.time() * 1000)))
         conn.commit()
         conn.close()
+        mark_dirty()
 
 
 def insert_location(device_id, lat, lon, accuracy=None, provider=None, source="gps"):
@@ -138,6 +158,7 @@ def insert_location(device_id, lat, lon, accuracy=None, provider=None, source="g
             (device_id, lat, lon, accuracy, provider, source, int(time.time() * 1000)))
         conn.commit()
         conn.close()
+        mark_dirty()
 
 
 def insert_file(device_id, kind, filename, size, path):
@@ -150,6 +171,7 @@ def insert_file(device_id, kind, filename, size, path):
             (device_id, kind, filename, size, path, int(time.time() * 1000)))
         conn.commit()
         conn.close()
+        mark_dirty()
 
 
 def list_devices():

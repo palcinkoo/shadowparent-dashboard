@@ -23,6 +23,8 @@ from werkzeug.security import check_password_hash
 
 import models
 import crypto
+import persist
+from io import BytesIO
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "sp-" + uuid.uuid4().hex)
@@ -38,6 +40,14 @@ APK_URL = os.environ.get(
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 models.init_db()
+
+# The free Render filesystem is wiped on every restart of the container, so
+# the database and the uploaded recordings are mirrored into a GitHub
+# repository and restored here when the container comes back empty.
+if persist.enabled():
+    persist.restore_db(models.DB_PATH)
+    persist.start_sync_loop(models.DB_PATH, models.is_dirty)
+    print("[persist] mirror enabled for %s@%s" % (persist.REPO, persist.BRANCH), flush=True)
 
 
 def authed():
@@ -187,11 +197,17 @@ def upload():
     kind = meta.split("|")[1] if meta and len(meta.split("|")) > 1 else "file"
 
     safe = os.path.basename(f.filename or "upload.bin")
-    dest = os.path.join(UPLOAD_DIR, f"{int(time.time())}_{device_id}_{safe}")
+    stamp = int(time.time())
+    dest = os.path.join(UPLOAD_DIR, f"{stamp}_{device_id}_{safe}")
     f.save(dest)
 
+    # Mirror the recording into the repository - the local copy disappears
+    # with the container, the mirrored one does not.
+    remote = persist.push_file(dest, "files/%s_%s" % (stamp, safe))
+    stored = "gh:files/%s_%s" % (stamp, safe) if remote else dest
+
     models.touch_device(device_id)
-    models.insert_file(device_id, kind, safe, os.path.getsize(dest), dest)
+    models.insert_file(device_id, kind, safe, os.path.getsize(dest), stored)
     return jsonify({"ok": True, "path": dest}), 200
 
 
@@ -346,14 +362,49 @@ def api_commands():
     ))
 
 
+def _file_bytes(row):
+    """Returns (bytes, mimetype) of a stored file - local copy or mirror."""
+    path = row.get("path") or ""
+    name = row.get("filename") or "file.bin"
+    if path.startswith("gh:"):
+        data = persist.read_file(path[3:])
+        if data is None:
+            return None, None
+        return data, _mimetype(name)
+    if os.path.exists(path):
+        with open(path, "rb") as handle:
+            return handle.read(), _mimetype(name)
+    return None, None
+
+
+def _mimetype(name):
+    if name.endswith(".m4a"):
+        return "audio/mp4"
+    if name.endswith(".mp4"):
+        return "video/mp4"
+    if name.endswith(".jpg") or name.endswith(".jpeg"):
+        return "image/jpeg"
+    if name.endswith(".png"):
+        return "image/png"
+    if name.endswith(".webp"):
+        return "image/webp"
+    if name.endswith(".3gp"):
+        return "video/3gpp"
+    return "application/octet-stream"
+
+
 @app.route("/api/file/<int:file_id>")
 def api_file_download(file_id):
     row = models.get_file(file_id)
     if not row:
         return jsonify({"error": "not found"}), 404
     path = row.get("path") or ""
-    if not os.path.exists(path):
-        return jsonify({"error": "file missing on server"}), 410
+    if path.startswith("gh:") or not os.path.exists(path):
+        data, mimetype = _file_bytes(row)
+        if data is None:
+            return jsonify({"error": "file missing on server"}), 410
+        return send_file(BytesIO(data), mimetype=mimetype, as_attachment=True,
+                         download_name=row.get("filename"))
     return send_file(path, as_attachment=True, download_name=row.get("filename"))
 
 
@@ -363,8 +414,12 @@ def api_file_preview(file_id):
     if not row:
         return jsonify({"error": "not found"}), 404
     path = row.get("path") or ""
-    if not os.path.exists(path):
-        return jsonify({"error": "file missing on server"}), 410
+    if path.startswith("gh:") or not os.path.exists(path):
+        data, mimetype = _file_bytes(row)
+        if data is None:
+            return jsonify({"error": "file missing on server"}), 410
+        return send_file(BytesIO(data), mimetype=mimetype, as_attachment=False,
+                         download_name=row.get("filename"))
     return send_file(path, as_attachment=False, download_name=row.get("filename"))
 
 

