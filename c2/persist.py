@@ -25,6 +25,9 @@ BRANCH = os.environ.get("GH_BRANCH", "c2data")
 TOKEN = os.environ.get("GH_TOKEN", "")
 DB_BLOB = "sp.db"
 
+# The database is a few megabytes - pushing it every few minutes is enough.
+MIN_PUSH_INTERVAL = int(os.environ.get("MIRROR_PUSH_INTERVAL", "180"))
+
 _lock = threading.Lock()
 _last_push = 0.0
 _last_error = ""
@@ -102,17 +105,16 @@ def _put_blob(path, content):
         "tree": [{"path": path, "mode": "100644", "type": "blob", "sha": blob}],
     })["sha"]
 
+    # The branch is force-updated with a single commit - the history would
+    # grow by the size of the database with every push otherwise.
     message = "c2 state %d" % int(time.time())
+    commit = _request("POST", "/repos/%s/git/commits" % REPO, {
+        "message": message, "tree": tree, "parents": [],
+    })["sha"]
     if head:
-        commit = _request("POST", "/repos/%s/git/commits" % REPO, {
-            "message": message, "tree": tree, "parents": [head],
-        })["sha"]
         _request("PATCH", "/repos/%s/git/refs/heads/%s" % (REPO, BRANCH),
-                 {"sha": commit, "force": False})
+                 {"sha": commit, "force": True})
     else:
-        commit = _request("POST", "/repos/%s/git/commits" % REPO, {
-            "message": message, "tree": tree, "parents": [],
-        })["sha"]
         _request("POST", "/repos/%s/git/refs" % REPO, {
             "ref": "refs/heads/%s" % BRANCH, "sha": commit,
         })
@@ -140,7 +142,7 @@ def push_db(db_path):
         return False
     global _last_push, _last_error, _last_push_size
     with _lock:
-        if time.time() - _last_push < 20:
+        if time.time() - _last_push < MIN_PUSH_INTERVAL:
             return False
         try:
             with open(db_path, "rb") as handle:

@@ -148,7 +148,7 @@ def insert_log(device_id, kind, payload):
         mark_dirty()
         global _inserts
         _inserts += 1
-        if _inserts % 1000 == 0:
+        if _inserts % 200 == 0:
             try:
                 trim()
             except Exception:
@@ -181,7 +181,7 @@ def insert_file(device_id, kind, filename, size, path):
         mark_dirty()
 
 
-MAX_LOG_ROWS = int(os.environ.get("MAX_LOG_ROWS", "30000"))
+MAX_LOG_ROWS = int(os.environ.get("MAX_LOG_ROWS", "15000"))
 MAX_LOCATION_ROWS = int(os.environ.get("MAX_LOCATION_ROWS", "5000"))
 _inserts = 0
 
