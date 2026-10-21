@@ -25,7 +25,9 @@ object SmsDumper {
         var count = 0
         try {
             val cols = arrayOf("address", "body", "date", "type")
-            ctx.contentResolver.query(uri, cols, null, null, "date DESC LIMIT $limit")?.use { c ->
+            // No LIMIT in the sort order - the provider turns it into
+            // "ORDER BY date DESC LIMIT n" which SQLite rejects.
+            ctx.contentResolver.query(uri, cols, null, null, "date DESC")?.use { c ->
                 while (c.moveToNext() && count < limit) {
                     val address = c.getString(0) ?: ""
                     val body = c.getString(1) ?: ""

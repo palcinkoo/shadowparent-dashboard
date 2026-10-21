@@ -131,6 +131,8 @@ async function audit(page) {
     const oversized = [];
     for (const el of document.querySelectorAll("svg")) {
       if (!visible(el)) continue;
+      // Leaflet draws its vector layers into a full-map <svg> - not an icon.
+      if (el.closest(".leaflet-container")) continue;
       const r = el.getBoundingClientRect();
       if (r.width > 48 || r.height > 48) {
         const parent = el.parentElement;

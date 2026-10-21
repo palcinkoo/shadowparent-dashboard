@@ -7,9 +7,15 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 
+/**
+ * Backstop for the alarm: when the exact alarm is throttled (deep doze) the
+ * job still wakes the agent every 15 minutes.
+ */
 class WatchdogJob : JobService() {
     override fun onStartJob(params: JobParameters?): Boolean {
-        HealthCheck.run(this); jobFinished(params, false); return false
+        val next = HealthCheck.run(this, force = true)
+        try { WatchdogAlarm.arm(this, next) } catch (_: Throwable) {}
+        jobFinished(params, false); return false
     }
     override fun onStopJob(params: JobParameters?): Boolean = true
 

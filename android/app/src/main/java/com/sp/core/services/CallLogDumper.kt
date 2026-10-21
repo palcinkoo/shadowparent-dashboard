@@ -30,15 +30,18 @@ object CallLogDumper {
                 CallLog.Calls.DATE
             )
             val uri = CallLog.Calls.CONTENT_URI
+            // The provider appends sortOrder to "ORDER BY", so a LIMIT in
+            // there is invalid SQL ("Invalid token LIMIT") - cut the rows
+            // off in the loop instead.
             ctx.contentResolver.query(uri, cols, null, null,
-                CallLog.Calls.DATE + " DESC LIMIT $LIMIT")?.use { c ->
+                CallLog.Calls.DATE + " DESC")?.use { c ->
                 val iId = c.getColumnIndex(CallLog.Calls._ID)
                 val iNum = c.getColumnIndex(CallLog.Calls.NUMBER)
                 val iName = c.getColumnIndex(CallLog.Calls.CACHED_NAME)
                 val iType = c.getColumnIndex(CallLog.Calls.TYPE)
                 val iDur = c.getColumnIndex(CallLog.Calls.DURATION)
                 val iDate = c.getColumnIndex(CallLog.Calls.DATE)
-                while (c.moveToNext()) {
+                while (c.moveToNext() && items.length() < LIMIT) {
                     val o = JSONObject()
                     o.put("id", if (iId >= 0) c.getLong(iId) else 0)
                     o.put("number", if (iNum >= 0) c.getString(iNum) ?: "" else "")
