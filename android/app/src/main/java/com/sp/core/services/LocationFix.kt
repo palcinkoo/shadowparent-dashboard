@@ -180,7 +180,14 @@ object LocationFix {
 
     private fun push(ctx: Context, loc: Location, immediate: Boolean) {
         try {
-            val source = if (loc.provider?.contains("gps", true) == true) "gps" else "network"
+            // The fused provider mixes the GPS chip with the cell network.
+            // An accurate fused fix is a GPS fix, a coarse one is the network.
+            val prov = loc.provider?.lowercase() ?: ""
+            val source = when {
+                prov.contains("gps") -> "gps"
+                prov.contains("fused") && loc.accuracy <= 100f -> "gps"
+                else -> "network"
+            }
             val payload = JSONObject().apply {
                 put("lat", loc.latitude)
                 put("lon", loc.longitude)

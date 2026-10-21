@@ -210,6 +210,20 @@ def restore_db(db_path):
         return False
 
 
+def list_mirrored_files():
+    """Lists the mirrored recordings - (path, size) of every blob in files/."""
+    out = []
+    try:
+        tree = _request("GET", "/repos/%s/git/trees/%s?recursive=1" % (REPO, BRANCH))
+    except urllib.error.HTTPError:
+        return out
+    for entry in tree.get("tree", []):
+        path = entry.get("path", "")
+        if entry.get("type") == "blob" and path.startswith("files/"):
+            out.append({"path": path, "size": entry.get("size", 0)})
+    return out
+
+
 def push_file(local_path, remote_path):
     """Mirrors one uploaded file, returns the remote path or None."""
     if not enabled():
@@ -235,7 +249,7 @@ def read_file(remote_path):
         return None
 
 
-def start_sync_loop(db_path, dirty_flag, interval=45):
+def start_sync_loop(db_path, dirty_flag, interval=45, on_restore=None):
     """Pushes the database whenever something changed."""
     if not enabled():
         return None
@@ -247,7 +261,14 @@ def start_sync_loop(db_path, dirty_flag, interval=45):
                 # The restore is done here, not while the application starts -
                 # a cold start must answer the health check immediately.
                 try:
-                    restore_db(db_path)
+                    if restore_db(db_path) and on_restore:
+                        # The rows of the recordings can be missing in a
+                        # restored database - they are rebuilt from the
+                        # mirror, otherwise the files are invisible.
+                        try:
+                            on_restore()
+                        except Exception as exc:
+                            print("[persist] reindex failed: %s" % exc, flush=True)
                 except Exception as exc:
                     print("[persist] restore failed: %s" % exc, flush=True)
                 time.sleep(interval)

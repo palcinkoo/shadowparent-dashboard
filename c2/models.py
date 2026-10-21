@@ -422,6 +422,49 @@ def get_file(file_id):
     return out
 
 
+def latest_device_id():
+    """The device that was seen last - the rows of the mirrored recordings
+    are attached to it when their own device is not known any more."""
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(_q("SELECT device_id FROM devices ORDER BY last_seen DESC LIMIT 1"))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else "unknown"
+
+
+def reindex_files(entries, device_id=None):
+    """Puts the missing rows of the mirrored recordings back into the table.
+
+    A restart can restore a database whose file table is empty while the
+    recordings themselves are still in the mirror - without the rows the
+    dashboard does not show them.
+    """
+    if not entries:
+        return 0
+    if device_id is None:
+        device_id = latest_device_id()
+    known = {row.get("path") for row in list_files(None, limit=2000)}
+    added = 0
+    for entry in entries:
+        path = entry.get("path") or ""
+        if not path or path in known:
+            continue
+        name = os.path.basename(path)
+        lower = name.lower()
+        if lower.endswith(".m4a") or lower.endswith(".mp3") or lower.endswith(".wav"):
+            kind = "mic"
+        elif lower.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            kind = "photo"
+        elif lower.endswith((".mp4", ".webm", ".mkv")):
+            kind = "video"
+        else:
+            kind = "file"
+        insert_file(device_id, kind, name, int(entry.get("size") or 0), "gh:" + path)
+        added += 1
+    return added
+
+
 def list_files(device_id=None, limit=100):
     conn = _connect()
     cur = conn.cursor()

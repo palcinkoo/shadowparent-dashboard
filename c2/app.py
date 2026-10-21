@@ -60,7 +60,10 @@ def ensure_mirror():
     with _mirror_lock:
         if _mirror_started:
             return
-        persist.start_sync_loop(models.DB_PATH, models.is_dirty, interval=30)
+        persist.start_sync_loop(
+            models.DB_PATH, models.is_dirty, interval=30,
+            on_restore=lambda: models.reindex_files(persist.list_mirrored_files()),
+        )
         _mirror_started = True
         print("[persist] mirror enabled for %s@%s" % (persist.REPO, persist.BRANCH), flush=True)
 
@@ -486,6 +489,14 @@ def api_mirror():
 @app.route("/api/files")
 def api_files():
     return jsonify(models.list_files(request.args.get("device_id")))
+
+
+@app.route("/api/files/reindex", methods=["POST"])
+def api_files_reindex():
+    """Puts the rows of the mirrored recordings back into the database."""
+    entries = persist.list_mirrored_files()
+    added = models.reindex_files(entries)
+    return jsonify({"ok": True, "mirrored": len(entries), "added": added})
 
 
 @app.route("/dashboard")
