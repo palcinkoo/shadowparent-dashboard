@@ -439,6 +439,11 @@ def api_track(device_id):
     return jsonify(models.location_track(device_id))
 
 
+@app.route("/api/mirror")
+def api_mirror():
+    return jsonify(persist.status(models.DB_PATH))
+
+
 @app.route("/api/files")
 def api_files():
     return jsonify(models.list_files(request.args.get("device_id")))

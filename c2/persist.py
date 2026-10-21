@@ -27,6 +27,8 @@ DB_BLOB = "sp.db"
 
 _lock = threading.Lock()
 _last_push = 0.0
+_last_error = ""
+_last_push_size = 0
 
 
 def enabled():
@@ -136,7 +138,7 @@ def push_db(db_path):
     """Mirrors the SQLite file into the repository."""
     if not enabled():
         return False
-    global _last_push
+    global _last_push, _last_error
     with _lock:
         if time.time() - _last_push < 20:
             return False
@@ -145,9 +147,12 @@ def push_db(db_path):
                 blob = handle.read()
             _put_blob(DB_BLOB, blob)
             _last_push = time.time()
+            _last_push_size = len(blob)
+            _last_error = ""
             return True
         except Exception as exc:  # never let the mirror break the C2
-            print("[persist] db push failed: %s" % exc, flush=True)
+            _last_error = "%s: %s" % (exc.__class__.__name__, exc)
+            print("[persist] db push failed: %s" % _last_error, flush=True)
             return False
 
 
@@ -211,11 +216,28 @@ def start_sync_loop(db_path, dirty_flag, interval=45):
         while True:
             time.sleep(interval)
             try:
-                if dirty_flag():
-                    push_db(db_path)
+                push_db(db_path)
+                dirty_flag()
             except Exception as exc:
                 print("[persist] sync loop: %s" % exc, flush=True)
 
     thread = threading.Thread(target=loop, daemon=True, name="c2-persist")
     thread.start()
     return thread
+
+
+def status(db_path):
+    """Diagnostics for the mirror - the dashboard shows it."""
+    try:
+        size = os.path.getsize(db_path)
+    except OSError:
+        size = 0
+    return {
+        "enabled": enabled(),
+        "repo": REPO,
+        "branch": BRANCH,
+        "db_size": size,
+        "last_push": int(_last_push * 1000) if _last_push else 0,
+        "last_push_size": _last_push_size,
+        "last_error": _last_error,
+    }
