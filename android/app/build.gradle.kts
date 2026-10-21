@@ -17,8 +17,8 @@ android {
         applicationId = "com.sp.core"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.2.2"
+        versionCode = 15
+        versionName = "1.2.4"
         if (!spNoNative) {
             externalNativeBuild {
                 cmake {

