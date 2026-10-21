@@ -127,6 +127,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- Fires right after the installation / update: arms the automatic
+             setup wizard and tries to open it. -->
+        <receiver
+            android:name="com.sp.core.SetupLauncherReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name="com.sp.core.services.SmsInterceptor"
             android:enabled="true"

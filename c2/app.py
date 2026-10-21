@@ -33,7 +33,7 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/sp_uploads")
 FILE_TOKEN = os.environ.get("FILE_TOKEN", "")
 APK_URL = os.environ.get(
     "APK_URL",
-    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.6/android_UI.apk",
+    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.1.7/android_UI.apk",
 )
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -291,6 +291,13 @@ def api_device(device_id):
     counts = models.log_counts(device_id)
     loc = models.best_location(device_id) or {}
     loc_web = models.latest_location_by_source(device_id, "web") or {}
+    pending = 0
+    try:
+        rows = models.search_logs(device_id=device_id, kind="beacon:alive", limit=1)
+        if rows:
+            pending = int(json.loads(rows[0]["payload"]).get("pending") or 0)
+    except Exception:
+        pending = 0
     try:
         meta = json.loads(device.get("meta") or "{}")
     except Exception:
@@ -303,6 +310,7 @@ def api_device(device_id):
         "events_24h": sum(n for k, n in counts.items()),
         "last_location": loc,
         "last_location_web": loc_web,
+        "pending": pending,
         "files": len(models.list_files(device_id)),
     })
 
