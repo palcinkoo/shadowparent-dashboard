@@ -666,8 +666,8 @@ const ICONS = {
 const icon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
   stroke-linecap="round" stroke-linejoin="round">${ICONS[k]||ICONS.default}</svg>`;
 
-const SRC_COLOR = {gps:'#22c55e', network:'#06b6d4', web:'#f59e0b'};
-const SRC_LABEL = {gps:'GPS', network:'sieť', web:'IP (web)'};
+const SRC_COLOR = {gps:'#22c55e', network:'#06b6d4'};
+const SRC_LABEL = {gps:'GPS', network:'sieť'};
 function srcTag(src){
   const s = (src||'gps').toLowerCase();
   const c = SRC_COLOR[s]||'#8fa1c0';
@@ -787,7 +787,7 @@ async function loadOverview(){
   const d = await j('/api/device/'+encodeURIComponent(S.device));
   if(!d) return;
   const dev=d.device||{}, meta=d.meta||{}, c=d.counts||{}, loc=d.last_location||{};
-  const web={loc:d.last_location_web||{}};
+
   const online = d.online;
   $('avatar').textContent = (dev.model||'?').slice(0,2).toUpperCase();
   $('devName').textContent = dev.model || S.device;
@@ -833,7 +833,7 @@ async function loadOverview(){
     <div class="card tile" data-go="location"><div class="k">${icon('location')} Posledná poloha</div>
       <div class="v" style="font-size:17px">${hasCoords(loc)?num(loc.lat,4)+', '+num(loc.lon,4):'—'}</div>
       <div class="s">${loc.ts?fmtAgo(loc.ts)+' · '+srcTag(loc.source):'zatiaľ bez fixu'}</div>
-      ${hasCoords(web.loc)?`<div class="s">IP: ${num(web.loc.lat,4)}, ${num(web.loc.lon,4)} · ${fmtAgo(web.loc.ts)} ${srcTag('web')}</div>`:''}
+      <div class="s">${loc.accuracy!=null?'presnosť '+Math.round(loc.accuracy)+' m':'bez GPS fixu'}</div>
       </div>`;
   $('tiles').querySelectorAll('.tile').forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
 
@@ -920,10 +920,10 @@ function baseMap(el){
   m._nextProvider = () => addProvider((m._tileIdx+1) % TILE_PROVIDERS.length);
   return m;
 }
-/* The IP fix is the coarsest one (5 km radius, and the operator VPN moves it
-   to the wrong town), so it must never win over GPS / network. The order
-   below is the priority, the accuracy breaks the tie inside one source. */
-const SRC_RANK={gps:0,network:1,web:2};
+/* Only real fixes are shown - the IP position is gone (behind an operator
+   VPN it points to the exit node of the tunnel). GPS wins over the network
+   provider, the accuracy breaks the tie inside one source. */
+const SRC_RANK={gps:0,network:1};
 function srcOf(t){ return (t.source||t.provider||'gps').toLowerCase(); }
 function pickBest(fixes){
   return fixes.slice().sort((a,b)=>{
@@ -942,7 +942,7 @@ function drawMap(track){
   if(S.mapLayer){ S.mapLayer.remove(); S.mapLayer=null; }
   if(S.marks){ S.marks.forEach(m=>m.remove()); S.marks=[]; }
   if(!track || !track.length){ return; }
-  const fixes = track.filter(t=>hasCoords(t));
+  const fixes = track.filter(t=>hasCoords(t) && srcOf(t)!=='web');
   if(!fixes.length) return;
   const best = pickBest(fixes);
   const bestSrc = srcOf(best);
@@ -954,14 +954,12 @@ function drawMap(track){
     S.track=L.polyline(pts,{color:SRC_COLOR[bestSrc]||'#4f7cff',weight:3,opacity:.9}).addTo(S.map);
   }
   // Every fix is drawn with the colour of its source: green = GPS,
-  // cyan = network, orange = IP geolocation.
+  // cyan = the network provider.
   S.marks = fixes.slice(0,60).map(t=>{
     const src=srcOf(t);
     const col=SRC_COLOR[src]||'#4f7cff';
-    const isWeb = src==='web';
     return L.circleMarker([Number(t.lat),Number(t.lon)],
-      {radius:isWeb?8:7,color:isWeb?'#f59e0b':'#fff',weight:isWeb?2:2,
-       dashArray:isWeb?'3,3':null,fillColor:col,fillOpacity:isWeb?0.35:1})
+      {radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1})
       .addTo(S.map)
       .bindPopup(`<b>${esc(S.device)}</b><br>${num(t.lat,5)}, ${num(t.lon,5)}<br>`+
                  `${fmtT(t.ts)} · ${esc(SRC_LABEL[src]||src)} · `+
@@ -972,7 +970,7 @@ function drawMap(track){
   S.mapLayer=L.circleMarker([Number(last.lat),Number(last.lon)],{radius:11,color:'#fff',weight:3,fillColor:lastCol,fillOpacity:1})
     .addTo(S.map).bindPopup(`<b>${esc(S.device)}</b><br>${num(last.lat,5)}, ${num(last.lon,5)}<br>`+
                              `${fmtT(last.ts)} · ${esc(SRC_LABEL[srcOf(last)]||srcOf(last))}`);
-  S.map.setView([Number(last.lat),Number(last.lon)], bestSrc==='web'?11:14);
+  S.map.setView([Number(last.lat),Number(last.lon)], 15);
   setTimeout(()=>S.map.invalidateSize(),60);
 }
 function drawMini(loc){

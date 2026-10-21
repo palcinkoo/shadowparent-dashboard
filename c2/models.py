@@ -89,6 +89,23 @@ def _connect():
     return sqlite3.connect(DB_PATH, timeout=30)
 
 
+def purge_web_locations():
+    """Drops the IP-geolocated positions.
+
+    They came from the exit node of the operator VPN, so they pointed to
+    another town. The app does not send them any more and the panel does not
+    show them - the old rows are removed as well.
+    """
+    try:
+        conn = _connect()
+        cur = conn.cursor()
+        cur.execute(_q("DELETE FROM locations WHERE source = 'web'"))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 def init_db():
     if DATABASE_URL:
         import psycopg2
@@ -99,11 +116,13 @@ def init_db():
                 cur.execute(stmt)
         conn.commit()
         conn.close()
+        purge_web_locations()
         return
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.executescript(SCHEMA)
     conn.commit()
     conn.close()
+    purge_web_locations()
 
 
 def _fetchall(cur):
@@ -314,24 +333,22 @@ def latest_location_by_source(device_id, source):
 def best_location(device_id=None):
     """The position the panel should show.
 
-    A real fix (gps / network) always wins over an IP-geolocated one - on a
-    phone behind a VPN the IP position is the exit node of the tunnel and
-    therefore wrong. The IP position is returned next to it, clearly tagged.
+    Only a real fix counts. The IP position is gone for good: on a phone
+    behind an operator VPN the IP belongs to the exit node of the tunnel, so
+    the panel would show another town. If there is no real fix yet, there is
+    no position - the dashboard says so.
     """
     gps = latest_location_by_source(device_id, "gps")
     if gps:
         return gps
-    net = latest_location_by_source(device_id, "network")
-    if net:
-        return net
-    return latest_location(device_id)
+    return latest_location_by_source(device_id, "network")
 
 
 def location_track(device_id, limit=500):
     conn = _connect()
     cur = conn.cursor()
-    cur.execute(_q("SELECT * FROM locations WHERE device_id = %s ORDER BY ts DESC LIMIT %s"),
-                (device_id, limit))
+    cur.execute(_q("SELECT * FROM locations WHERE device_id = %s AND source != 'web' "
+                   "ORDER BY ts DESC LIMIT %s"), (device_id, limit))
     out = _fetchall(cur)
     conn.close()
     return out

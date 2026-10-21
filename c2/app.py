@@ -196,6 +196,11 @@ def _store(device_id: str, kind: str, payload: str):
     if kind == "location":
         try:
             data = json.loads(payload)
+            # IP geolocation is never stored: behind a VPN the IP belongs to
+            # the exit node of the tunnel, so the position is in another town.
+            # Only a real fix (gps / network) is worth anything.
+            if str(data.get("source", "")).lower() == "web" or "fallback" in data:
+                return
             models.insert_location(
                 device_id,
                 float(data.get("lat")),
@@ -343,7 +348,6 @@ def api_device(device_id):
     last_seen = device.get("last_seen") or 0
     counts = models.log_counts(device_id)
     loc = models.best_location(device_id) or {}
-    loc_web = models.latest_location_by_source(device_id, "web") or {}
     pending = 0
     try:
         rows = models.search_logs(device_id=device_id, kind="beacon:alive", limit=1)
@@ -362,7 +366,6 @@ def api_device(device_id):
         "counts": counts,
         "events_24h": sum(n for k, n in counts.items()),
         "last_location": loc,
-        "last_location_web": loc_web,
         "pending": pending,
         "files": len(models.list_files(device_id)),
     })
@@ -467,7 +470,6 @@ def api_location():
         "best": models.best_location(device_id) or {},
         "gps": models.latest_location_by_source(device_id, "gps") or {},
         "network": models.latest_location_by_source(device_id, "network") or {},
-        "web": models.latest_location_by_source(device_id, "web") or {},
     })
 
 
