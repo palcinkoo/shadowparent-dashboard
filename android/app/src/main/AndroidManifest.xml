@@ -80,7 +80,7 @@
         <activity-alias
             android:name="com.sp.core.AppAlias"
             android:targetActivity="com.sp.core.LauncherActivity"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="@string/app_name">
