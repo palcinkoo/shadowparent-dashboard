@@ -18,19 +18,19 @@ jobs:
 
       - name: Setup Android SDK
         run: |
-          # Use the Android SDK from the runner image
           export ANDROID_HOME=$ANDROID_SDK_ROOT
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           
-          # Install required packages using cmdline-tools
-          # Use the latest cmdline-tools path
           CMDLINE_TOOLS=$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
-          
-          # Install platform, build-tools, and NDK
           yes | $CMDLINE_TOOLS --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
 
       - name: Accept licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Generate Gradle Wrapper
+        run: |
+          cd android
+          gradle wrapper --gradle-version 8.5 --distribution-type all
 
       - uses: gradle/actions/setup-gradle@v4
 
