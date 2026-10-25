@@ -30,7 +30,7 @@ jobs:
       - name: Generate Gradle Wrapper
         run: |
           cd android
-          gradle wrapper --gradle-version 8.5 --distribution-type all
+          gradle wrapper --gradle-version 8.9 --distribution-type all
 
       - uses: gradle/actions/setup-gradle@v4
 
