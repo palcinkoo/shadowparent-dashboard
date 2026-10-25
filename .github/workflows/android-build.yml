@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: android
     steps:
       - uses: actions/checkout@v4
 
@@ -31,16 +28,17 @@ jobs:
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.5 --distribution-type all
+        run: |
+          cd android
+          gradle wrapper --gradle-version 8.5 --distribution-type all
 
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Install Python deps
         run: pip3 install --break-system-packages cryptography
-        working-directory: ${{ github.workspace }}
 
       - name: Build APKs
-        run: bash ../tools/build_apk.sh
+        run: bash tools/build_apk.sh
         env:
           SP_STORE_PASS: ${{ secrets.SP_STORE_PASS }}
           SP_KEY_PASS: ${{ secrets.SP_KEY_PASS }}
@@ -48,6 +46,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: shadowparent-apk
-          path: ../build/*.apk
+          path: build/*.apk
           if-no-files-found: error
-        working-directory: android
