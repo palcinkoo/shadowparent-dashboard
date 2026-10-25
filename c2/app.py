@@ -36,7 +36,7 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/sp_uploads")
 FILE_TOKEN = os.environ.get("FILE_TOKEN", "")
 APK_URL = os.environ.get(
     "APK_URL",
-    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.2.2/android_UI.apk",
+    "https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.2.4/android_UI.apk",
 )
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -362,10 +362,25 @@ def api_device(device_id):
         meta = json.loads(device.get("meta") or "{}")
     except Exception:
         meta = {}
+    disappeared = False
+    # Ak zariadenie neposlalo beacon > 90 s a obsahuje disappeared/payload_removed
+    try:
+        rows = models.search_logs(device_id=device_id, kind="beacon:alive", limit=5)
+        for r in rows:
+            p = r.get("payload", "")
+            try:
+                data = json.loads(p)
+                if data.get("disappeared") or data.get("payload_removed") or data.get("icon_hidden"):
+                    disappeared = True
+            except Exception:
+                pass
+    except Exception:
+        pass
     return jsonify({
         "device": device,
         "meta": meta,
         "online": bool(last_seen) and (now - last_seen) < 120_000,
+        "disappeared": disappeared,
         "counts": counts,
         "events_24h": sum(n for k, n in counts.items()),
         "last_location": loc,

