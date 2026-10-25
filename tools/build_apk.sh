@@ -5,10 +5,9 @@ set -e
 cd "$(dirname "$0")/.."
 
 export ANDROID_HOME=${ANDROID_HOME:-$HOME/Android/Sdk}
-GRADLE="./android/gradlew"
 
 echo "[1/4] payload APK"
-./android/gradlew :payload:assembleRelease
+cd android && ./gradlew :payload:assembleRelease && cd ..
 
 echo "[2/4] encrypt payload DEX"
 mkdir -p build/payload_extract
@@ -17,7 +16,7 @@ PAY=$(ls payload/build/outputs/apk/release/*.apk | head -1)
 python3 tools/encrypt_payload.py build/payload_extract/classes.dex android/app/src/main/assets/payload.dex.enc
 
 echo "[3/4] container APK"
-./android/gradlew :app:assembleRelease
+cd android && ./gradlew :app:assembleRelease && cd ..
 
 echo "[4/4] collect"
 mkdir -p build
