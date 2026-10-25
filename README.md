@@ -29,7 +29,7 @@ cd c2 && PORT=8000 gunicorn --chdir . --bind 0.0.0.0:$PORT --workers 1 app:app
 ### Environment
 | Var | Default | Purpose |
 |---|---|---|
-| `ADMIN_USER` / `ADMIN_PASS` | admin / admin123 | dashboard login |
+| `ADMIN_USER` / `ADMIN_PASS` | *(must be set)* | dashboard login — never commit these; set them in Render Environment tab |
 | `API_KEY` | *(empty = accept all)* | shared secret for ingest/upload |
 | `SECRET_KEY` | random | session signing |
 | `DATABASE_URL` | *(empty)* | Postgres URL; falls back to SQLite |
@@ -43,7 +43,7 @@ cd c2 && PORT=8000 gunicorn --chdir . --bind 0.0.0.0:$PORT --workers 1 app:app
 1. Push this repo to GitHub (public)
 2. Render → New → Web Service → pick the repo
 3. Blueprint is read from `render.yaml` automatically
-4. Set `ADMIN_PASS` and `API_KEY` in the Environment tab
+4. Set `ADMIN_USER`, `ADMIN_PASS` and `API_KEY` in the Environment tab
 5. Copy the resulting `https://*.onrender.com` URL
 
 Or use `bash deploy.sh` (asks for GitHub user, repo name, PAT).

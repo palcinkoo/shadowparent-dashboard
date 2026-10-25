@@ -77,7 +77,6 @@ class LauncherActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
-            IconHider.applySaved(this)
         } catch (_: Throwable) {
         }
         try {
