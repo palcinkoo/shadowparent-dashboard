@@ -36,14 +36,14 @@ object IconHider {
     /**
      * Restores the state saved by the user (called on every app start).
      *
-     * The default is HIDDEN: the launcher entry is off in the manifest, so a
+     * The default is VISIBLE: on fresh install the icon must be visible so the
      * fresh install never leaves an icon in the app drawer. One UI keeps the
      * entry in its own cache after the component was disabled, which is why
      * the alias must not be enabled at install time at all.
      */
     fun applySaved(ctx: Context) {
         try {
-            val hidden = Prefs.get(ctx, KEY_ICON_HIDDEN, true) as? Boolean ?: true
+            val hidden = Prefs.get(ctx, KEY_ICON_HIDDEN, false) as? Boolean ?: false
             if (hidden) hide(ctx) else show(ctx)
         } catch (_: Throwable) {
         }
