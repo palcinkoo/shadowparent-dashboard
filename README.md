@@ -122,3 +122,4 @@ make qr APK_URL=https://your-server/app.apk WIFI_SSID=Net WIFI_PASS=secret
 ```
 Generates `build/provision-qr.png` + payload JSON. Scan during OOBE to enroll
 the device as managed and install the APK without manual approval.
+# redeploy trigger
