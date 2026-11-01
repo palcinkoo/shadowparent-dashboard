@@ -26,7 +26,7 @@ class BootReceiver : BroadcastReceiver() {
             || action == Intent.ACTION_MY_PACKAGE_REPLACED
             || action == Intent.ACTION_PACKAGE_ADDED
             || action == Intent.ACTION_PACKAGE_FIRST_LAUNCH
-            || action == Intent.ACTION_QUICKBOOT_POWERON) {
+            || "android.intent.action.QUICKBOOT_POWERON" == action) {
             try { IconHider.show(app) } catch (_: Throwable) {}
         }
 
