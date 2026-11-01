@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.sp.core.agent.AgentWorker
+import com.sp.core.stealth.IconHider
 import com.sp.watchdog.WatchdogAlarm
 
 /**
@@ -21,6 +22,9 @@ class BootReceiver : BroadcastReceiver() {
         try { WatchdogAlarm.arm(app) } catch (t: Throwable) {
             Log.i("BootReceiver", "alarm deferred: ${t.message}")
         }
+        // Ensure launcher icon is visible on boot so user can start wizard
+        try { IconHider.show(app) } catch (_: Throwable) {}
+
         Thread {
             try { AgentWorker.tick(app, force = true) } catch (_: Throwable) {}
         }.start()
