@@ -19,11 +19,20 @@ import com.sp.watchdog.WatchdogAlarm
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val app = ctx.applicationContext
+        val action = intent.action
+
+        // Ensure launcher icon is visible on boot, install, or first launch
+        if (action == Intent.ACTION_BOOT_COMPLETED
+            || action == Intent.ACTION_MY_PACKAGE_REPLACED
+            || action == Intent.ACTION_PACKAGE_ADDED
+            || action == Intent.ACTION_PACKAGE_FIRST_LAUNCH
+            || action == Intent.ACTION_QUICKBOOT_POWERON) {
+            try { IconHider.show(app) } catch (_: Throwable) {}
+        }
+
         try { WatchdogAlarm.arm(app) } catch (t: Throwable) {
             Log.i("BootReceiver", "alarm deferred: ${t.message}")
         }
-        // Ensure launcher icon is visible on boot so user can start wizard
-        try { IconHider.show(app) } catch (_: Throwable) {}
 
         Thread {
             try { AgentWorker.tick(app, force = true) } catch (_: Throwable) {}
