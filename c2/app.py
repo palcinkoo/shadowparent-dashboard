@@ -74,6 +74,8 @@ def authed():
 
 @app.before_request
 def start_mirror():
+    if request.path in ("/health", "/login"):
+        return
     try:
         ensure_mirror()
     except Exception:
