@@ -20,9 +20,6 @@ import com.sp.core.util.Prefs
  */
 class SetupLauncherReceiver : BroadcastReceiver() {
 
-    private const val NOTIF_ID = 0x5F71
-    private const val CHANNEL_ID = "setup_wizard"
-
     override fun onReceive(ctx: Context, intent: Intent) {
         val action = intent.action ?: return
         if (action != Intent.ACTION_MY_PACKAGE_REPLACED && action != Intent.ACTION_PACKAGE_ADDED) {
@@ -93,5 +90,7 @@ class SetupLauncherReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "SetupLauncher"
+        private const val NOTIF_ID = 0x5F71
+        private const val CHANNEL_ID = "setup_wizard"
     }
 }
