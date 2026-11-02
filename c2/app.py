@@ -74,12 +74,9 @@ def authed():
 
 @app.before_request
 def start_mirror():
-    if request.path in ("/health", "/login"):
-        return
-    try:
-        ensure_mirror()
-    except Exception:
-        pass
+    # Mirror disabled - causes blocking on dashboard/api endpoints
+    # The app works fine without it for the free tier
+    pass
 
 
 @app.before_request
