@@ -6,7 +6,6 @@ services:
     region: frankfurt
     buildCommand: pip install -r c2/requirements.txt
     startCommand: gunicorn --chdir c2 --bind 0.0.0.0:$PORT --workers 1 --timeout 120 app:app
-    healthCheckPath: /health
     envVars:
       - key: SECRET_KEY
         generateValue: true
