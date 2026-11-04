@@ -19,8 +19,6 @@ jobs:
       
       - name: Deploy to Fly.io
         run: |
-          flyctl launch --no-deploy --name shadowparent-c2 --region fra \
-            --dockerfile c2/Dockerfile || true
-          flyctl deploy --config c2/fly.toml
+          flyctl deploy --config c2/fly.toml --dockerfile c2/Dockerfile
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
