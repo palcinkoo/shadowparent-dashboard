@@ -15,11 +15,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Setup Fly.io
+        uses: superfly/flyctl-actions@1.5
+        with:
+          version: 'latest'
 
       - name: Deploy to Fly.io
-        run: flyctl deploy --config c2/fly.toml --app shadowparent-c2 --region fra --yes
+        run: |
+          # Check if app exists, if not create it
+          if ! flyctl apps list | grep -q "shadowparent-c2"; then
+            echo "App does not exist, creating..."
+            flyctl launch --no-deploy --name shadowparent-c2 --region fra --dockerfile c2/Dockerfile --yes
+          fi
+          flyctl deploy --config c2/fly.toml --dockerfile c2/Dockerfile
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}

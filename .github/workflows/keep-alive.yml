@@ -11,5 +11,5 @@ jobs:
     steps:
       - name: Ping health endpoint
         run: |
-          curl -fsS --max-time 30 https://shadowparent-c2-jnqm.onrender.com/health
+          curl -fsS --max-time 30 https://shadowparent-c2-d1p2.onrender.com/health
           echo "Keep-alive ping sent"
