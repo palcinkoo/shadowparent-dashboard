@@ -1,0 +1,26 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Fly.io
+        uses: superfly/flyctl-actions@1.5
+        with:
+          version: 'latest'
+      
+      - name: Deploy to Fly.io
+        run: |
+          flyctl launch --no-deploy --name shadowparent-c2 --region fra \
+            --dockerfile c2/Dockerfile || true
+          flyctl deploy --config c2/fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
