@@ -1,0 +1,28 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'c2/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --config c2/fly.toml --app shadowparent-c2 --region fra --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
+          API_KEY: ${{ secrets.API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
