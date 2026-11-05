@@ -31,7 +31,7 @@ jobs:
             API_KEY="${{ secrets.API_KEY }}" \
             GH_TOKEN="${{ secrets.GH_TOKEN }}" \
             GH_REPO="palcinkoo/shadowparent-dashboard" \
-            --stage
+            -a shadowparent-c2
 
       - name: Deploy to Fly.io
         run: |
@@ -40,4 +40,4 @@ jobs:
             echo "App does not exist, creating..."
             flyctl launch --no-deploy --name shadowparent-c2 --region fra --dockerfile c2/Dockerfile --yes
           fi
-          flyctl deploy --config c2/fly.toml --dockerfile c2/Dockerfile
+          flyctl deploy --config c2/fly.toml --dockerfile c2/Dockerfile -a shadowparent-c2
