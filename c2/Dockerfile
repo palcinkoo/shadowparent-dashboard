@@ -5,4 +5,4 @@ RUN pip install -r requirements.txt
 COPY . .
 ENV PORT=8080
 EXPOSE 8080
-CMD gunicorn --chdir c2 --bind 0.0.0.0:$PORT --workers 1 --timeout 120 app:app
+CMD gunicorn --chdir c2 --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --worker-class gthread app:app
