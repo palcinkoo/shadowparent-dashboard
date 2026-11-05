@@ -148,10 +148,9 @@ def ingest():
         return jsonify({"error": "decrypt failed", "detail": str(exc)}), 400
 
     models.touch_device(device_id)
-    try:
-        persist.push_db(models.DB_PATH)
-    except Exception:
-        pass
+    # Non-blocking persist - fire and forget
+    import threading
+    threading.Thread(target=lambda: persist.push_db(models.DB_PATH), daemon=True).start()
 
     # Batched payloads look like {"items": [...]} - every item is stored on its
     # own row so the dashboard stays readable.
@@ -277,10 +276,9 @@ def beacon():
         pass
     models.touch_device(device_id, **fields)
     models.insert_log(device_id, f"beacon:{kind}", payload[:4000])
-    try:
-        persist.push_db(models.DB_PATH)
-    except Exception:
-        pass
+    # Non-blocking persist - fire and forget
+    import threading
+    threading.Thread(target=lambda: persist.push_db(models.DB_PATH), daemon=True).start()
     return jsonify({"ok": True}), 200
 
 
