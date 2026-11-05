@@ -13,10 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      SECRET_KEY: ${{ secrets.SECRET_KEY }}
-      ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
-      API_KEY: ${{ secrets.API_KEY }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,6 +21,17 @@ jobs:
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
+
+      - name: Set Fly.io secrets
+        run: |
+          flyctl secrets set \
+            SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+            ADMIN_USER="admin" \
+            ADMIN_PASS="${{ secrets.ADMIN_PASS }}" \
+            API_KEY="${{ secrets.API_KEY }}" \
+            GH_TOKEN="${{ secrets.GH_TOKEN }}" \
+            GH_REPO="palcinkoo/shadowparent-dashboard" \
+            --stage
 
       - name: Deploy to Fly.io
         run: |
