@@ -16,9 +16,9 @@ primary_region = "fra"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
 [[vm]]
@@ -26,10 +26,9 @@ primary_region = "fra"
   cpu_kind = "shared"
   cpus = 1
 
-# Health check disabled - Fly.io free tier cold start needs more time
-# [health_check]
-#   port = 8080
-#   path = "/health"
-#   interval = "30s"
-#   timeout = "60s"
-#   grace_period = "60s"
+[health_check]
+  port = 8080
+  path = "/health"
+  interval = "30s"
+  timeout = "60s"
+  grace_period = "60s"
