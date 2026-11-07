@@ -5,12 +5,15 @@ on:
     branches: [main]
     paths:
       - 'c2/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy-fly.yml'
   workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
@@ -23,6 +26,7 @@ jobs:
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Set Fly.io secrets
+        if: ${{ secrets.SECRET_KEY != '' }}
         run: |
           flyctl secrets set \
             SECRET_KEY="${{ secrets.SECRET_KEY }}" \
