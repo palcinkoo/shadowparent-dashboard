@@ -11,21 +11,20 @@ jobs:
   deploy:
     name: Deploy to Railway
     runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: npm install -g @railway/cli
+        run: npm install -g @railway/cli --allow-scripts
 
       - name: Deploy to Railway
         run: |
-          railway login --token "${RAILWAY_TOKEN}"
-          # Try to link existing project, or create new one
+          # Railway CLI reads RAILWAY_TOKEN from env automatically
           if ! railway status --json 2>/dev/null | grep -q "projectId"; then
             echo "No project linked, creating new project..."
             railway init --name shadowparent-c2
           fi
           railway up --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
