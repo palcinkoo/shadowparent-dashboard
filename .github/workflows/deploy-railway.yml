@@ -21,4 +21,4 @@ jobs:
         run: npm install -g @railway/cli --allow-scripts
 
       - name: Deploy to Railway
-        run: railway up --detach --project ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: railway up --detach --project ${{ secrets.RAILWAY_PROJECT_ID }} --environment production
