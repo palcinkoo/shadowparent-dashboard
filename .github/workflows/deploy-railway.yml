@@ -20,11 +20,8 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli --allow-scripts
 
+      - name: Link Railway project
+        run: railway link ${{ secrets.RAILWAY_PROJECT_ID }}
+
       - name: Deploy to Railway
-        run: |
-          # Railway CLI reads RAILWAY_TOKEN from env automatically
-          if ! railway status --json 2>/dev/null | grep -q "projectId"; then
-            echo "No project linked, creating new project..."
-            railway init --name shadowparent-c2
-          fi
-          railway up --detach
+        run: railway up --detach
