@@ -20,8 +20,5 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli --allow-scripts
 
-      - name: Link Railway project
-        run: railway link ${{ secrets.RAILWAY_PROJECT_ID }}
-
       - name: Deploy to Railway
-        run: railway up --detach
+        run: railway up --detach --project ${{ secrets.RAILWAY_PROJECT_ID }}
