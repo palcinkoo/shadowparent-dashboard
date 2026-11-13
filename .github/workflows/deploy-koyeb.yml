@@ -1,0 +1,27 @@
+name: Deploy to Koyeb
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'c2/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Koyeb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Koyeb CLI
+        run: |
+          curl -fsSL https://cli.koyeb.com/install.sh | sh
+          echo "$HOME/.koyeb/bin" >> $GITHUB_PATH
+
+      - name: Deploy to Koyeb
+        run: |
+          koyeb init --token ${{ secrets.KOYEB_TOKEN }} --name shadowparent-c2 --git github.com/palcinkoo/shadowparent-dashboard --branch main --build-dockerfile c2/Dockerfile --ports 8080:http --env PORT=8080 --env SECRET_KEY=${{ secrets.SECRET_KEY }} --env ADMIN_USER=admin --env ADMIN_PASS=${{ secrets.ADMIN_PASS }} --env API_KEY=${{ secrets.API_KEY }} --env DB_PATH=/data/sp.db --env UPLOAD_DIR=/data/sp_uploads --env GH_REPO=palcinkoo/shadowparent-dashboard --env GH_BRANCH=c2data --env GH_TOKEN=${{ secrets.GH_TOKEN }} --regions fra
+        env:
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
